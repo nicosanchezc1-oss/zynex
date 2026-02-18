@@ -1,0 +1,7 @@
+{
+  "name": "Zynex TV Launcher",
+  "description": "A customizable, AI-powered Android TV launcher simulation with remote-control style navigation and Gemini-powered content discovery.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
