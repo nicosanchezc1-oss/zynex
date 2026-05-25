@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  button,
+  input {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  button {
+    background: transparent;
+  }
+}
+
 @layer utilities {
   .line-clamp-1 {
     overflow: hidden;

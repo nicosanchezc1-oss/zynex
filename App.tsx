@@ -314,31 +314,35 @@ const App: React.FC = () => {
       }
 
       const tabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+      const gridColumn = focusedIndex % getColumnCount();
 
       switch (event.key) {
         case 'ArrowLeft':
           if (focusArea === 'tabs') selectTab(tabs[Math.max(0, tabIndex - 1)].id);
+          else if (gridColumn === 0) setFocusArea('tabs');
           else moveFocus('left');
           event.preventDefault();
           break;
         case 'ArrowRight':
-          if (focusArea === 'tabs') selectTab(tabs[Math.min(tabs.length - 1, tabIndex + 1)].id);
+          if (focusArea === 'tabs') setFocusArea('grid');
           else moveFocus('right');
           event.preventDefault();
           break;
         case 'ArrowUp':
-          if (focusArea === 'grid' && focusedIndex < getColumnCount()) setFocusArea('tabs');
+          if (focusArea === 'tabs') selectTab(tabs[Math.max(0, tabIndex - 1)].id);
+          else if (focusArea === 'grid' && focusedIndex < getColumnCount()) setFocusArea('tabs');
           else if (focusArea === 'grid') moveFocus('up');
           event.preventDefault();
           break;
         case 'ArrowDown':
-          if (focusArea === 'tabs') setFocusArea('grid');
+          if (focusArea === 'tabs') selectTab(tabs[Math.min(tabs.length - 1, tabIndex + 1)].id);
           else moveFocus('down');
           event.preventDefault();
           break;
         case 'Enter':
         case 'NumpadEnter':
-          if (focusArea === 'grid') runItem(focusedItem);
+          if (focusArea === 'tabs') setFocusArea('grid');
+          else runItem(focusedItem);
           event.preventDefault();
           break;
         case 'ContextMenu':
@@ -364,61 +368,85 @@ const App: React.FC = () => {
     <div className="min-h-screen w-screen overflow-hidden bg-[#03050b] text-slate-100">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(99,102,241,0.28),transparent_28rem),radial-gradient(circle_at_88%_78%,rgba(34,211,238,0.16),transparent_30rem),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,1))]" />
       <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:64px_64px]" />
-      <div className="relative z-10 flex h-screen flex-col px-10 py-7">
-        <Header clock={clock} appCount={apps.length} isNative={nativeBridge.isNative()} />
+      <div className="relative z-10 flex h-screen">
+        <aside className="flex w-72 shrink-0 flex-col border-r border-white/10 bg-slate-950/45 px-5 py-8 shadow-[30px_0_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+          <div className="mb-10 flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-500 to-cyan-400 shadow-[0_0_32px_rgba(99,102,241,0.34)]">
+              <span className="font-brand text-2xl text-white">Z</span>
+            </div>
+            <div>
+              <div className="font-brand text-3xl tracking-[0.14em] text-white">ZYNEX</div>
+              <div className="font-tech text-[10px] font-bold uppercase tracking-[0.4em] text-cyan-300">Vision OS</div>
+            </div>
+          </div>
 
-        <div className="mt-5 flex h-16 shrink-0 items-center gap-4 rounded-[14px] border border-white/10 bg-white/[0.06] p-2 shadow-[0_18px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-          <div className="flex min-w-[340px] items-center gap-3 rounded-[10px] border border-white/10 bg-black/30 px-4 py-3">
-            <Search size={22} className="text-cyan-300" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar apps..."
-              className="w-full bg-transparent text-lg font-semibold text-slate-100 outline-none placeholder:text-slate-500"
+          <nav className="space-y-3">
+            {tabs.map((tab) => (
+              <TabButton
+                key={tab.id}
+                tab={tab}
+                isActive={activeTab === tab.id}
+                isFocused={focusArea === 'tabs' && activeTab === tab.id}
+                onClick={() => selectTab(tab.id)}
+              />
+            ))}
+          </nav>
+
+          <div className="mt-auto rounded-[18px] border border-cyan-300/20 bg-cyan-300/10 p-4">
+            <div className="flex items-center gap-3 text-cyan-100">
+              <Wifi size={18} className="animate-pulse" />
+              <span className="font-tech text-xs font-bold uppercase tracking-[0.2em]">Android Bridge</span>
+            </div>
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full w-4/5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
+            </div>
+            <div className="mt-3 text-sm text-slate-300">{apps.length} apps listas</div>
+          </div>
+        </aside>
+
+        <main className="flex min-w-0 flex-1 flex-col px-7 py-7">
+          <Header
+            clock={clock}
+            appCount={apps.length}
+            isNative={nativeBridge.isNative()}
+            query={query}
+            onQueryChange={setQuery}
+          />
+
+          <HeroPanel focusedItem={focusedItem} activeTab={activeTab} resultCount={currentItems.length} />
+
+          <div className="mt-5 grid min-h-0 flex-1 grid-cols-[1fr_340px] gap-5">
+            <section className="min-h-0 rounded-[22px] border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+              <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} query={query} resultCount={currentItems.length} />
+              {currentItems.length === 0 ? (
+                <EmptyState activeTab={activeTab} onRefresh={loadApps} />
+              ) : (
+                <div className="mt-4 grid max-h-[calc(100vh-390px)] grid-cols-3 gap-4 overflow-y-auto pr-2">
+                  {currentItems.map((item, index) => (
+                    <LauncherTile
+                      key={item.id}
+                      id={`tile-${index}`}
+                      item={item}
+                      isFocused={focusArea === 'grid' && focusedIndex === index}
+                      isFavorite={!('action' in item) && favorites.includes(item.id)}
+                      onFocus={() => setFocusedIndex(index)}
+                      onRun={() => runItem(item)}
+                      onMenu={() => {
+                        if (!('action' in item)) setContextItem(item);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <Aside
+              focusedItem={focusedItem}
+              activeTab={activeTab}
+              onRun={() => runItem(focusedItem)}
+              onRefresh={loadApps}
             />
           </div>
-          {tabs.map((tab) => (
-            <TabButton
-              key={tab.id}
-              tab={tab}
-              isActive={activeTab === tab.id}
-              isFocused={focusArea === 'tabs' && activeTab === tab.id}
-              onClick={() => selectTab(tab.id)}
-            />
-          ))}
-        </div>
-
-        <main className="mt-5 grid min-h-0 flex-1 grid-cols-[1fr_350px] gap-5">
-          <section className="min-h-0 rounded-[18px] border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-            <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} query={query} resultCount={currentItems.length} />
-            {currentItems.length === 0 ? (
-              <EmptyState activeTab={activeTab} onRefresh={loadApps} />
-            ) : (
-              <div className="mt-4 grid max-h-[calc(100vh-250px)] grid-cols-4 gap-4 overflow-y-auto pr-2">
-                {currentItems.map((item, index) => (
-                  <LauncherTile
-                    key={item.id}
-                    id={`tile-${index}`}
-                    item={item}
-                    isFocused={focusArea === 'grid' && focusedIndex === index}
-                    isFavorite={!('action' in item) && favorites.includes(item.id)}
-                    onFocus={() => setFocusedIndex(index)}
-                    onRun={() => runItem(item)}
-                    onMenu={() => {
-                      if (!('action' in item)) setContextItem(item);
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <Aside
-            focusedItem={focusedItem}
-            activeTab={activeTab}
-            onRun={() => runItem(focusedItem)}
-            onRefresh={loadApps}
-          />
         </main>
       </div>
 
@@ -451,22 +479,28 @@ const App: React.FC = () => {
   );
 };
 
-const Header: React.FC<{ clock: Date; appCount: number; isNative: boolean }> = ({ clock, appCount, isNative }) => (
-  <header className="flex h-20 shrink-0 items-center justify-between">
-    <div>
-      <div className="flex items-center gap-4">
-        <div className="font-brand text-5xl tracking-[0.12em] text-white drop-shadow-[0_0_18px_rgba(34,211,238,0.38)]">ZYNEX</div>
-        <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-cyan-200">
-          OS TV
-        </div>
-      </div>
-      <div className="mt-1 flex items-center gap-3 text-sm text-slate-400">
-        <span>{appCount} apps detectadas</span>
-        <span className="h-1 w-1 rounded-full bg-indigo-400" />
-        <span>{isNative ? 'Android bridge activo' : 'Preview web'}</span>
-      </div>
+const Header: React.FC<{
+  clock: Date;
+  appCount: number;
+  isNative: boolean;
+  query: string;
+  onQueryChange: (query: string) => void;
+}> = ({ clock, appCount, isNative, query, onQueryChange }) => (
+  <header className="flex h-20 shrink-0 items-center justify-between gap-6">
+    <div className="flex min-w-[460px] items-center gap-3 rounded-[16px] border border-white/10 bg-black/30 px-5 py-3 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <Search size={24} className="text-cyan-300" />
+      <input
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        placeholder="Busca en Zynex OS..."
+        className="w-full bg-transparent text-lg font-semibold text-slate-100 outline-none placeholder:text-slate-500"
+      />
+      <div className="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1 text-xs font-bold text-indigo-100">{appCount}</div>
     </div>
     <div className="flex items-center gap-5 text-right">
+      <div className="hidden rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-cyan-100 xl:block">
+        {isNative ? 'Nativo' : 'Preview'}
+      </div>
       <div>
         <div className="font-tech text-4xl leading-none">{clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         <div className="mt-1 text-sm capitalize text-slate-400">{clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })}</div>
@@ -478,6 +512,36 @@ const Header: React.FC<{ clock: Date; appCount: number; isNative: boolean }> = (
   </header>
 );
 
+const HeroPanel: React.FC<{ focusedItem: LauncherItem | ActionItem | null; activeTab: TabId; resultCount: number }> = ({ focusedItem, activeTab, resultCount }) => {
+  const titleByTab: Record<TabId, string> = {
+    home: 'Zynex Home',
+    apps: 'Aplicaciones',
+    store: 'Zynex Store',
+    tools: 'Herramientas',
+    settings: 'Ajustes',
+  };
+
+  return (
+    <section className="mt-5 flex h-40 shrink-0 items-end justify-between overflow-hidden rounded-[24px] border border-white/10 bg-gradient-to-r from-slate-950/80 via-indigo-950/45 to-cyan-950/30 px-8 py-6 shadow-[0_24px_90px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+      <div>
+        <div className="mb-3 flex items-center gap-3">
+          <span className="rounded-full bg-white/10 px-3 py-1 font-tech text-xs font-bold uppercase tracking-[0.24em] text-cyan-200">
+            {titleByTab[activeTab]}
+          </span>
+          <span className="h-1 w-1 rounded-full bg-cyan-300" />
+          <span className="text-sm font-semibold text-slate-400">{resultCount} elementos</span>
+        </div>
+        <h1 className="font-tech text-6xl font-black leading-none tracking-tight text-white drop-shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+          {focusedItem?.title ?? titleByTab[activeTab]}
+        </h1>
+      </div>
+      <p className="max-w-xl pb-2 text-right text-lg leading-relaxed text-slate-300">
+        {focusedItem?.description ?? 'Launcher real para Android TV con apps instaladas, acciones nativas y navegacion por control remoto.'}
+      </p>
+    </section>
+  );
+};
+
 const TabButton: React.FC<{
   tab: { id: TabId; label: string; icon: React.ElementType };
   isActive: boolean;
@@ -488,10 +552,11 @@ const TabButton: React.FC<{
   return (
     <button
       onClick={onClick}
-      className={`flex h-full flex-1 items-center justify-center gap-3 rounded-[10px] px-4 text-lg font-bold transition-all ${
-        isActive ? 'bg-indigo-500 text-white shadow-[0_0_26px_rgba(99,102,241,0.34)]' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+      className={`relative flex w-full items-center gap-4 rounded-[16px] border px-4 py-4 text-left text-lg font-bold transition-all ${
+        isActive ? 'border-cyan-300/30 bg-white/10 text-white shadow-[0_0_26px_rgba(99,102,241,0.24)]' : 'border-white/5 bg-white/[0.035] text-slate-400 hover:border-white/10 hover:bg-white/5'
       } ${isFocused ? 'outline outline-2 outline-offset-2 outline-cyan-300' : ''}`}
     >
+      {isActive && <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.85)]" />}
       <Icon size={22} />
       <span>{tab.label}</span>
     </button>
@@ -539,7 +604,7 @@ const LauncherTile: React.FC<{
         event.preventDefault();
         onMenu();
       }}
-      className={`group relative h-32 rounded-[14px] border p-4 text-left transition-transform ${
+      className={`group relative h-36 rounded-[14px] border p-4 text-left transition-transform ${
         isFocused
           ? 'scale-[1.035] border-cyan-300 bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-[0_22px_60px_rgba(34,211,238,0.22)]'
           : 'border-white/10 bg-slate-950/55 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
@@ -549,18 +614,18 @@ const LauncherTile: React.FC<{
         {'imageUrl' in item && item.imageUrl ? (
           <img
             src={item.imageUrl}
-            className="h-14 w-14 shrink-0 rounded-[12px] bg-black/30 object-contain"
+            className="h-12 w-12 shrink-0 rounded-[12px] bg-black/30 object-contain"
             onError={(event) => {
               event.currentTarget.style.display = 'none';
             }}
           />
         ) : (
-          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] ${isFocused ? 'bg-white/15' : 'bg-white/10'}`}>
-            <Icon size={28} />
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] ${isFocused ? 'bg-white/15' : 'bg-white/10'}`}>
+            <Icon size={26} />
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xl font-bold">{item.title}</div>
+          <div className="truncate text-lg font-bold">{item.title}</div>
           <div className={`mt-1 line-clamp-2 text-sm ${isFocused ? 'text-indigo-50' : 'text-slate-400'}`}>
             {'isInstalled' in item && item.isInstalled ? 'Instalada' : item.description}
           </div>
