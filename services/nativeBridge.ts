@@ -5,6 +5,7 @@ declare global {
   interface Window {
     Android?: {
       getInstalledApps: () => string; // Returns JSON string of apps
+      getDeviceInfo: () => string;
       launchApp: (packageName: string) => boolean; // Returns success status
       openSystemSettings: (panel: string) => boolean;
       openAppStore: (packageName: string) => boolean;
@@ -52,6 +53,37 @@ export const nativeBridge = {
     } catch (error) {
       console.error("Error parsing native apps:", error);
       return [];
+    }
+  },
+
+  getDeviceInfo: async (): Promise<{
+    manufacturer: string;
+    model: string;
+    androidVersion: string;
+    sdk: number;
+    webView: string;
+  }> => {
+    if (!window.Android) {
+      return {
+        manufacturer: 'Preview',
+        model: 'Browser',
+        androidVersion: 'Web',
+        sdk: 0,
+        webView: navigator.userAgent,
+      };
+    }
+
+    try {
+      return JSON.parse(window.Android.getDeviceInfo());
+    } catch (error) {
+      console.error("Error parsing device info:", error);
+      return {
+        manufacturer: 'Android',
+        model: 'TV Box',
+        androidVersion: 'Unknown',
+        sdk: 0,
+        webView: 'Android WebView',
+      };
     }
   },
 

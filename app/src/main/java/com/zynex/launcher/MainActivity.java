@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -12,6 +13,7 @@ import android.graphics.Canvas;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Base64;
@@ -147,6 +149,25 @@ public class MainActivity extends Activity {
                 Log.w(TAG, message);
             } else {
                 Log.i(TAG, message);
+            }
+        }
+
+        @JavascriptInterface
+        public String getDeviceInfo() {
+            try {
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("manufacturer", Build.MANUFACTURER);
+                jsonObject.put("model", Build.MODEL);
+                jsonObject.put("androidVersion", Build.VERSION.RELEASE);
+                jsonObject.put("sdk", Build.VERSION.SDK_INT);
+
+                PackageInfo webViewPackage = WebView.getCurrentWebViewPackage();
+                jsonObject.put("webView", webViewPackage != null ? webViewPackage.versionName : "Android WebView");
+
+                return jsonObject.toString();
+            } catch (Exception exception) {
+                exception.printStackTrace();
+                return "{}";
             }
         }
 
