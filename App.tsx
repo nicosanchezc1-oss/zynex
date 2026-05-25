@@ -16,6 +16,7 @@ import {
   Search,
   Settings,
   Shield,
+  Sparkles,
   Trash2,
   Wifi,
 } from 'lucide-react';
@@ -86,6 +87,7 @@ const App: React.FC = () => {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [clock, setClock] = useState(() => new Date());
   const [contextItem, setContextItem] = useState<LauncherItem | null>(null);
+  const [query, setQuery] = useState('');
 
   const showToast = useCallback((text: string, tone: ToastState['tone'] = 'ok') => {
     setToast({ text, tone });
@@ -128,6 +130,16 @@ const App: React.FC = () => {
 
     return selected.length ? selected : apps.slice(0, 8);
   }, [apps, favorites]);
+
+  const installedPackageNames = useMemo(() => new Set(apps.map((app) => app.packageName).filter(Boolean)), [apps]);
+
+  const storeItems = useMemo(() => tvStoreApps.map((app) => ({
+    ...app,
+    description: app.packageName && installedPackageNames.has(app.packageName)
+      ? 'Instalada en este TV Box'
+      : app.description || 'Abrir tienda compatible',
+    isInstalled: Boolean(app.packageName && installedPackageNames.has(app.packageName)),
+  })), [installedPackageNames]);
 
   const tools = useMemo<ActionItem[]>(() => [
     {
@@ -200,15 +212,29 @@ const App: React.FC = () => {
     },
   ], []);
 
-  const currentItems = useMemo(() => {
+  const baseItems = useMemo(() => {
     if (activeTab === 'home') return favoriteApps;
     if (activeTab === 'apps') return apps;
-    if (activeTab === 'store') return tvStoreApps;
+    if (activeTab === 'store') return storeItems;
     if (activeTab === 'tools') return tools;
     return settings;
-  }, [activeTab, apps, favoriteApps, settings, tools]);
+  }, [activeTab, apps, favoriteApps, settings, storeItems, tools]);
+
+  const currentItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery || activeTab === 'tools' || activeTab === 'settings') return baseItems;
+
+    return baseItems.filter((item) => {
+      const packageName = 'packageName' in item ? item.packageName ?? '' : '';
+      return `${item.title} ${item.description} ${packageName}`.toLowerCase().includes(normalizedQuery);
+    });
+  }, [activeTab, baseItems, query]);
 
   const focusedItem = currentItems[focusedIndex] ?? null;
+
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [activeTab, query]);
 
   const selectTab = useCallback((tab: TabId) => {
     setActiveTab(tab);
@@ -235,12 +261,17 @@ const App: React.FC = () => {
     }
 
     if (item.type === ItemType.STORE) {
+      if (item.isInstalled) {
+        launchApp(item);
+        return;
+      }
+
       if (!item.packageName) {
         showToast('Esta app no tiene enlace de tienda', 'warn');
         return;
       }
-      nativeBridge.openAppStore(item.packageName);
-      showToast(`Buscando ${item.title}`);
+      const didOpenStore = nativeBridge.openAppStore(item.packageName);
+      showToast(didOpenStore ? `Buscando ${item.title}` : `No encontre tienda para ${item.title}`, didOpenStore ? 'ok' : 'warn');
       return;
     }
 
@@ -265,6 +296,12 @@ const App: React.FC = () => {
       return Math.min(maxIndex, index + columns);
     });
   }, [currentItems.length]);
+
+  useEffect(() => {
+    if (focusArea !== 'grid') return;
+    const focusedTile = document.getElementById(`tile-${focusedIndex}`);
+    if (focusedTile) focusedTile.scrollIntoView(false);
+  }, [focusArea, focusedIndex]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -312,7 +349,8 @@ const App: React.FC = () => {
           break;
         case 'Backspace':
         case 'Escape':
-          selectTab('home');
+          if (query) setQuery('');
+          else selectTab('home');
           event.preventDefault();
           break;
       }
@@ -323,12 +361,22 @@ const App: React.FC = () => {
   }, [activeTab, contextItem, focusArea, focusedIndex, focusedItem, moveFocus, runItem, selectTab]);
 
   return (
-    <div className="min-h-screen w-screen overflow-hidden bg-[#10130f] text-[#f4f0df]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(214,177,84,0.18),transparent_26rem),radial-gradient(circle_at_86%_80%,rgba(52,211,153,0.13),transparent_28rem)]" />
-      <div className="relative z-10 flex h-screen flex-col px-8 py-6">
+    <div className="min-h-screen w-screen overflow-hidden bg-[#03050b] text-slate-100">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(99,102,241,0.28),transparent_28rem),radial-gradient(circle_at_88%_78%,rgba(34,211,238,0.16),transparent_30rem),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,1))]" />
+      <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:64px_64px]" />
+      <div className="relative z-10 flex h-screen flex-col px-10 py-7">
         <Header clock={clock} appCount={apps.length} isNative={nativeBridge.isNative()} />
 
-        <nav className="mt-5 flex h-16 shrink-0 items-center gap-3 rounded-[10px] border border-white/10 bg-black/20 p-2">
+        <div className="mt-5 flex h-16 shrink-0 items-center gap-4 rounded-[14px] border border-white/10 bg-white/[0.06] p-2 shadow-[0_18px_70px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+          <div className="flex min-w-[340px] items-center gap-3 rounded-[10px] border border-white/10 bg-black/30 px-4 py-3">
+            <Search size={22} className="text-cyan-300" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar apps..."
+              className="w-full bg-transparent text-lg font-semibold text-slate-100 outline-none placeholder:text-slate-500"
+            />
+          </div>
           {tabs.map((tab) => (
             <TabButton
               key={tab.id}
@@ -338,18 +386,19 @@ const App: React.FC = () => {
               onClick={() => selectTab(tab.id)}
             />
           ))}
-        </nav>
+        </div>
 
-        <main className="mt-5 grid min-h-0 flex-1 grid-cols-[1fr_330px] gap-5">
-          <section className="min-h-0 rounded-[10px] border border-white/10 bg-black/25 p-5">
-            <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} />
+        <main className="mt-5 grid min-h-0 flex-1 grid-cols-[1fr_350px] gap-5">
+          <section className="min-h-0 rounded-[18px] border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+            <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} query={query} resultCount={currentItems.length} />
             {currentItems.length === 0 ? (
               <EmptyState activeTab={activeTab} onRefresh={loadApps} />
             ) : (
-              <div className="mt-4 grid max-h-[calc(100vh-250px)] grid-cols-4 gap-4 overflow-hidden pr-1">
-                {currentItems.slice(0, 24).map((item, index) => (
+              <div className="mt-4 grid max-h-[calc(100vh-250px)] grid-cols-4 gap-4 overflow-y-auto pr-2">
+                {currentItems.map((item, index) => (
                   <LauncherTile
                     key={item.id}
+                    id={`tile-${index}`}
                     item={item}
                     isFocused={focusArea === 'grid' && focusedIndex === index}
                     isFavorite={!('action' in item) && favorites.includes(item.id)}
@@ -405,15 +454,24 @@ const App: React.FC = () => {
 const Header: React.FC<{ clock: Date; appCount: number; isNative: boolean }> = ({ clock, appCount, isNative }) => (
   <header className="flex h-20 shrink-0 items-center justify-between">
     <div>
-      <div className="font-brand text-4xl tracking-[0.12em] text-[#f7d66d]">ZYNEX</div>
-      <div className="mt-1 text-sm text-[#b9b39b]">Launcher TV Box · {appCount} apps · {isNative ? 'Android conectado' : 'Preview web'}</div>
+      <div className="flex items-center gap-4">
+        <div className="font-brand text-5xl tracking-[0.12em] text-white drop-shadow-[0_0_18px_rgba(34,211,238,0.38)]">ZYNEX</div>
+        <div className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-cyan-200">
+          OS TV
+        </div>
+      </div>
+      <div className="mt-1 flex items-center gap-3 text-sm text-slate-400">
+        <span>{appCount} apps detectadas</span>
+        <span className="h-1 w-1 rounded-full bg-indigo-400" />
+        <span>{isNative ? 'Android bridge activo' : 'Preview web'}</span>
+      </div>
     </div>
     <div className="flex items-center gap-5 text-right">
       <div>
         <div className="font-tech text-4xl leading-none">{clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-        <div className="mt-1 text-sm capitalize text-[#b9b39b]">{clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })}</div>
+        <div className="mt-1 text-sm capitalize text-slate-400">{clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })}</div>
       </div>
-      <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-[#f7d66d] text-[#11130f]">
+      <div className="flex h-12 w-12 items-center justify-center rounded-[12px] border border-cyan-300/30 bg-cyan-300/15 text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.18)]">
         <Power size={22} />
       </div>
     </div>
@@ -430,9 +488,9 @@ const TabButton: React.FC<{
   return (
     <button
       onClick={onClick}
-      className={`flex h-full flex-1 items-center justify-center gap-3 rounded-[8px] px-4 text-lg font-bold transition-colors ${
-        isActive ? 'bg-[#f7d66d] text-[#11130f]' : 'bg-white/5 text-[#d9d2b4] hover:bg-white/10'
-      } ${isFocused ? 'outline outline-2 outline-offset-2 outline-[#f7d66d]' : ''}`}
+      className={`flex h-full flex-1 items-center justify-center gap-3 rounded-[10px] px-4 text-lg font-bold transition-all ${
+        isActive ? 'bg-indigo-500 text-white shadow-[0_0_26px_rgba(99,102,241,0.34)]' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+      } ${isFocused ? 'outline outline-2 outline-offset-2 outline-cyan-300' : ''}`}
     >
       <Icon size={22} />
       <span>{tab.label}</span>
@@ -440,7 +498,7 @@ const TabButton: React.FC<{
   );
 };
 
-const SectionTitle: React.FC<{ activeTab: TabId; isLoadingApps: boolean }> = ({ activeTab, isLoadingApps }) => {
+const SectionTitle: React.FC<{ activeTab: TabId; isLoadingApps: boolean; query: string; resultCount: number }> = ({ activeTab, isLoadingApps, query, resultCount }) => {
   const titleByTab: Record<TabId, string> = {
     home: 'Favoritos e inicio',
     apps: 'Aplicaciones instaladas',
@@ -452,56 +510,63 @@ const SectionTitle: React.FC<{ activeTab: TabId; isLoadingApps: boolean }> = ({ 
   return (
     <div className="flex items-center justify-between">
       <h1 className="font-tech text-3xl">{titleByTab[activeTab]}</h1>
-      {isLoadingApps && <span className="rounded-[6px] bg-white/10 px-3 py-1 text-sm text-[#f7d66d]">Leyendo apps...</span>}
+      <div className="flex items-center gap-3">
+        {query && <span className="rounded-[8px] bg-cyan-300/10 px-3 py-1 text-sm font-bold text-cyan-200">{resultCount} resultados</span>}
+        {isLoadingApps && <span className="rounded-[8px] bg-indigo-400/10 px-3 py-1 text-sm font-bold text-indigo-200">Leyendo apps...</span>}
+      </div>
     </div>
   );
 };
 
 const LauncherTile: React.FC<{
+  id: string;
   item: LauncherItem | ActionItem;
   isFocused: boolean;
   isFavorite: boolean;
   onFocus: () => void;
   onRun: () => void;
   onMenu: () => void;
-}> = ({ item, isFocused, isFavorite, onFocus, onRun, onMenu }) => {
+}> = ({ id, item, isFocused, isFavorite, onFocus, onRun, onMenu }) => {
   const isAction = 'action' in item;
   const Icon = isAction ? item.icon : AppWindow;
 
   return (
     <button
+      id={id}
       onMouseEnter={onFocus}
       onClick={onRun}
       onContextMenu={(event) => {
         event.preventDefault();
         onMenu();
       }}
-      className={`group relative h-32 rounded-[8px] border p-4 text-left transition-transform ${
+      className={`group relative h-32 rounded-[14px] border p-4 text-left transition-transform ${
         isFocused
-          ? 'scale-[1.035] border-[#f7d66d] bg-[#f7d66d] text-[#11130f] shadow-[0_18px_45px_rgba(0,0,0,0.35)]'
-          : 'border-white/10 bg-[#1a1e18] text-[#f4f0df]'
+          ? 'scale-[1.035] border-cyan-300 bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-[0_22px_60px_rgba(34,211,238,0.22)]'
+          : 'border-white/10 bg-slate-950/55 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
       }`}
     >
       <div className="flex items-start gap-3">
         {'imageUrl' in item && item.imageUrl ? (
           <img
             src={item.imageUrl}
-            className="h-14 w-14 shrink-0 rounded-[8px] bg-black/30 object-contain"
+            className="h-14 w-14 shrink-0 rounded-[12px] bg-black/30 object-contain"
             onError={(event) => {
               event.currentTarget.style.display = 'none';
             }}
           />
         ) : (
-          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[8px] ${isFocused ? 'bg-black/10' : 'bg-white/10'}`}>
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[12px] ${isFocused ? 'bg-white/15' : 'bg-white/10'}`}>
             <Icon size={28} />
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="truncate text-xl font-bold">{item.title}</div>
-          <div className={`mt-1 line-clamp-2 text-sm ${isFocused ? 'text-[#38301a]' : 'text-[#b9b39b]'}`}>{item.description}</div>
+          <div className={`mt-1 line-clamp-2 text-sm ${isFocused ? 'text-indigo-50' : 'text-slate-400'}`}>
+            {'isInstalled' in item && item.isInstalled ? 'Instalada' : item.description}
+          </div>
         </div>
       </div>
-      {isFavorite && <div className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-emerald-400" />}
+      {isFavorite && <div className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.75)]" />}
     </button>
   );
 };
@@ -512,25 +577,28 @@ const Aside: React.FC<{
   onRun: () => void;
   onRefresh: () => void;
 }> = ({ focusedItem, activeTab, onRun, onRefresh }) => (
-  <aside className="rounded-[10px] border border-white/10 bg-black/25 p-5">
+  <aside className="rounded-[18px] border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
     <div className="flex h-full flex-col">
-      <div className="rounded-[8px] bg-[#f7d66d] p-5 text-[#11130f]">
-        <div className="text-sm font-bold uppercase tracking-[0.16em]">Seleccionado</div>
+      <div className="rounded-[14px] border border-cyan-300/20 bg-gradient-to-br from-indigo-500/95 to-cyan-500/90 p-5 text-white shadow-[0_0_36px_rgba(99,102,241,0.25)]">
+        <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-cyan-50">
+          <Sparkles size={16} />
+          Seleccionado
+        </div>
         <div className="mt-3 font-tech text-3xl leading-none">{focusedItem?.title ?? 'Sin elemento'}</div>
-        <div className="mt-3 min-h-14 text-base text-[#3f371e]">{focusedItem?.description ?? 'Elegí una opcion con el control remoto.'}</div>
+        <div className="mt-3 min-h-14 text-base text-indigo-50">{focusedItem?.description ?? 'Elegi una opcion con el control remoto.'}</div>
       </div>
 
-      <div className="mt-5 space-y-3 text-sm text-[#b9b39b]">
+      <div className="mt-5 space-y-3 text-sm text-slate-400">
         <InfoLine icon={Play} text="OK abre la app o ejecuta accion" />
         <InfoLine icon={Info} text="Menu abre info, favorito o desinstalar" />
         <InfoLine icon={RefreshCw} text="Actualizar vuelve a leer apps nativas" />
       </div>
 
       <div className="mt-auto grid gap-3">
-        <button onClick={onRun} className="h-12 rounded-[8px] bg-[#f7d66d] font-bold text-[#11130f]">
+        <button onClick={onRun} className="h-12 rounded-[12px] bg-cyan-300 font-bold text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.18)]">
           {activeTab === 'store' ? 'Buscar / instalar' : 'Abrir'}
         </button>
-        <button onClick={onRefresh} className="h-12 rounded-[8px] border border-white/10 bg-white/5 font-bold text-[#f4f0df]">
+        <button onClick={onRefresh} className="h-12 rounded-[12px] border border-white/10 bg-white/5 font-bold text-slate-100">
           Actualizar apps
         </button>
       </div>
@@ -539,20 +607,20 @@ const Aside: React.FC<{
 );
 
 const InfoLine: React.FC<{ icon: React.ElementType; text: string }> = ({ icon: Icon, text }) => (
-  <div className="flex items-center gap-3 rounded-[8px] bg-white/5 p-3">
-    <Icon size={18} className="text-[#f7d66d]" />
+  <div className="flex items-center gap-3 rounded-[12px] bg-white/5 p-3">
+    <Icon size={18} className="text-cyan-300" />
     <span>{text}</span>
   </div>
 );
 
 const EmptyState: React.FC<{ activeTab: TabId; onRefresh: () => void }> = ({ activeTab, onRefresh }) => (
-  <div className="mt-4 flex h-[420px] flex-col items-center justify-center rounded-[8px] border border-dashed border-white/15 bg-white/5 text-center">
-    <AppWindow size={42} className="text-[#f7d66d]" />
+  <div className="mt-4 flex h-[420px] flex-col items-center justify-center rounded-[14px] border border-dashed border-white/15 bg-white/5 text-center">
+    <AppWindow size={42} className="text-cyan-300" />
     <div className="mt-4 font-tech text-3xl">No hay elementos</div>
-    <div className="mt-2 max-w-md text-[#b9b39b]">
+    <div className="mt-2 max-w-md text-slate-400">
       {activeTab === 'apps' ? 'No pude leer aplicaciones instaladas todavia.' : 'Esta seccion no tiene contenido.'}
     </div>
-    <button onClick={onRefresh} className="mt-6 rounded-[8px] bg-[#f7d66d] px-6 py-3 font-bold text-[#11130f]">
+    <button onClick={onRefresh} className="mt-6 rounded-[12px] bg-cyan-300 px-6 py-3 font-bold text-slate-950">
       Reintentar
     </button>
   </div>
@@ -568,15 +636,15 @@ const ContextPanel: React.FC<{
   onUninstall: () => void;
 }> = ({ item, isFavorite, onClose, onLaunch, onFavorite, onInfo, onUninstall }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-    <div className="w-[520px] rounded-[10px] border border-white/10 bg-[#151812] p-5 text-[#f4f0df] shadow-2xl">
+    <div className="w-[520px] rounded-[18px] border border-white/10 bg-slate-950/95 p-5 text-slate-100 shadow-2xl backdrop-blur-xl">
       <div className="font-tech text-3xl">{item.title}</div>
-      <div className="mt-1 text-sm text-[#b9b39b]">{item.packageName ?? 'Sin paquete'}</div>
+      <div className="mt-1 text-sm text-slate-400">{item.packageName ?? 'Sin paquete'}</div>
       <div className="mt-5 grid gap-3">
         <ActionButton icon={Play} label="Abrir" onClick={onLaunch} />
         <ActionButton icon={Home} label={isFavorite ? 'Quitar de inicio' : 'Anadir a inicio'} onClick={onFavorite} />
         <ActionButton icon={Info} label="Informacion de app" onClick={onInfo} />
         <ActionButton icon={Trash2} label="Desinstalar" onClick={onUninstall} danger />
-        <button onClick={onClose} className="mt-2 h-12 rounded-[8px] border border-white/10 bg-white/5 font-bold">
+        <button onClick={onClose} className="mt-2 h-12 rounded-[12px] border border-white/10 bg-white/5 font-bold">
           Volver
         </button>
       </div>
@@ -587,8 +655,8 @@ const ContextPanel: React.FC<{
 const ActionButton: React.FC<{ icon: React.ElementType; label: string; onClick: () => void; danger?: boolean }> = ({ icon: Icon, label, onClick, danger }) => (
   <button
     onClick={onClick}
-    className={`flex h-12 items-center gap-3 rounded-[8px] px-4 font-bold ${
-      danger ? 'bg-red-500/15 text-red-200' : 'bg-white/10 text-[#f4f0df]'
+    className={`flex h-12 items-center gap-3 rounded-[12px] px-4 font-bold ${
+      danger ? 'bg-red-500/15 text-red-200' : 'bg-white/10 text-slate-100'
     }`}
   >
     <Icon size={20} />
@@ -599,7 +667,7 @@ const ActionButton: React.FC<{ icon: React.ElementType; label: string; onClick: 
 const Toast: React.FC<{ toast: ToastState }> = ({ toast }) => {
   const color = toast.tone === 'error' ? 'border-red-400 text-red-100' : toast.tone === 'warn' ? 'border-amber-300 text-amber-100' : 'border-emerald-300 text-emerald-100';
   return (
-    <div className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[8px] border bg-black/80 px-5 py-3 text-lg font-bold shadow-2xl ${color}`}>
+    <div className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[12px] border bg-black/85 px-5 py-3 text-lg font-bold shadow-2xl backdrop-blur-xl ${color}`}>
       {toast.text}
     </div>
   );
