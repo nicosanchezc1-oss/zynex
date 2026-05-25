@@ -3,6 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+  }
+
   button,
   input {
     appearance: none;
@@ -11,6 +24,14 @@
 
   button {
     background: transparent;
+  }
+
+  html:focus,
+  body:focus,
+  #root:focus,
+  button:focus,
+  input:focus {
+    outline: none;
   }
 }
 
