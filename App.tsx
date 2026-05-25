@@ -158,8 +158,8 @@ const App: React.FC = () => {
 
   const homeItems = useMemo(() => {
     const usefulRecent = recentApps.filter((app) => scoreApp(app) >= 30);
-    return uniqueItems([...dailyApps, ...usefulRecent, ...favoriteApps]).slice(0, 8);
-  }, [dailyApps, favoriteApps, recentApps]);
+    return uniqueItems([...dailyApps, ...usefulRecent, ...favoriteApps, ...apps]).slice(0, 10);
+  }, [apps, dailyApps, favoriteApps, recentApps]);
 
   const installedPackageNames = useMemo(() => new Set(apps.map((app) => app.packageName).filter(Boolean)), [apps]);
 
@@ -402,17 +402,18 @@ const App: React.FC = () => {
   }, [activeTab, contextItem, focusArea, focusedIndex, focusedItem, moveFocus, openContext, runItem, selectTab]);
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#03050b] p-8 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.16),transparent_26rem),radial-gradient(circle_at_90%_85%,rgba(99,102,241,0.18),transparent_30rem),linear-gradient(135deg,#020617,#050812_48%,#020617)]" />
-      <div className="relative z-10 flex h-full min-h-0 gap-4">
-        <aside className="flex w-56 shrink-0 flex-col rounded-[22px] border border-white/10 bg-slate-950/70 p-4">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-500 to-cyan-400">
-              <span className="font-brand text-2xl text-white">Z</span>
+    <div className="h-screen w-screen overflow-hidden bg-[#02040a] p-8 text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_8%,rgba(30,64,175,0.34),transparent_26rem),radial-gradient(circle_at_75%_20%,rgba(34,211,238,0.14),transparent_32rem),radial-gradient(circle_at_76%_92%,rgba(14,165,233,0.18),transparent_26rem),linear-gradient(135deg,#02040a,#07101e_48%,#02040a)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/70 to-transparent" />
+      <div className="relative z-10 flex h-full min-h-0 gap-7">
+        <aside className="flex w-48 shrink-0 flex-col rounded-[28px] border border-white/[0.08] bg-black/25 p-3 shadow-[0_28px_90px_rgba(0,0,0,0.35)] backdrop-blur">
+          <div className="mb-7 flex items-center gap-3 px-2 pt-2">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[17px] bg-gradient-to-br from-blue-500 via-sky-400 to-cyan-300 shadow-[0_14px_35px_rgba(34,211,238,0.22)]">
+              <span className="font-brand text-xl text-white">Z</span>
             </div>
             <div>
-              <div className="font-brand text-2xl tracking-[0.12em] text-white">ZYNEX</div>
-              <div className="font-tech text-[9px] font-bold uppercase tracking-[0.32em] text-cyan-300">Vision OS</div>
+              <div className="font-brand text-xl tracking-[0.12em] text-white">ZYNEX</div>
+              <div className="font-tech text-[8px] font-bold uppercase tracking-[0.32em] text-cyan-300">Vision OS</div>
             </div>
           </div>
 
@@ -428,10 +429,10 @@ const App: React.FC = () => {
             ))}
           </nav>
 
-          <div className="mt-auto rounded-[18px] border border-cyan-300/15 bg-cyan-300/10 p-4">
-            <div className="font-tech text-xs font-bold uppercase tracking-[0.24em] text-cyan-200">Modo TV</div>
-            <div className="mt-3 text-3xl font-black text-white">{apps.length}</div>
-            <div className="text-sm text-slate-400">apps listas</div>
+          <div className="mt-auto rounded-[22px] border border-white/[0.08] bg-white/[0.04] px-4 py-4">
+            <div className="font-tech text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-200">Biblioteca</div>
+            <div className="mt-2 text-2xl font-black text-white">{apps.length}</div>
+            <div className="text-xs text-slate-400">apps en este TV</div>
           </div>
         </aside>
 
@@ -448,17 +449,16 @@ const App: React.FC = () => {
           <HeroPanel
             focusedItem={focusedItem}
             activeTab={activeTab}
-            deviceInfo={deviceInfo}
             onRun={() => runItem(focusedItem)}
             onRefresh={loadApps}
           />
 
-          <section className="mt-4 flex min-h-0 flex-1 flex-col rounded-[24px] border border-white/10 bg-white/[0.055] p-4">
+          <section className="mt-5 flex min-h-0 flex-1 flex-col">
             <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} query={query} resultCount={currentItems.length} />
             {currentItems.length === 0 ? (
               <EmptyState activeTab={activeTab} onRefresh={loadApps} />
             ) : (
-              <div className={`mt-4 grid min-h-0 flex-1 items-start overflow-y-auto pr-2 ${activeTab === 'home' ? 'grid-cols-4 auto-rows-[9.25rem] gap-4' : 'grid-cols-5 auto-rows-[8.5rem] gap-4'}`}>
+              <div className={`mt-4 grid min-h-0 flex-1 items-start overflow-y-auto pr-2 ${activeTab === 'home' ? 'grid-cols-5 auto-rows-[178px] gap-4' : 'grid-cols-5 auto-rows-[150px] gap-4'}`}>
                 {currentItems.map((item, index) => (
                   <LauncherTile
                     key={item.id}
@@ -515,14 +515,14 @@ const Header: React.FC<{
   onQueryChange: (query: string) => void;
   onPower: () => void;
 }> = ({ clock, appCount, isNative, query, onQueryChange, onPower }) => (
-  <header className="flex h-16 shrink-0 items-center justify-between gap-5">
-    <div className="flex min-w-[520px] items-center gap-3 rounded-[18px] border border-white/10 bg-black/30 px-5 py-3">
-      <Search size={26} className="text-cyan-300" />
+  <header className="flex h-14 shrink-0 items-center justify-between gap-5">
+    <div className="flex min-w-[460px] items-center gap-3 rounded-full border border-white/10 bg-black/25 px-5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <Search size={23} className="text-cyan-300" />
       <input
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
         placeholder="Buscar app..."
-        className="w-full bg-transparent text-2xl font-bold text-slate-100 outline-none placeholder:text-slate-500"
+        className="w-full bg-transparent text-xl font-bold text-slate-100 outline-none placeholder:text-slate-500"
       />
       <div className="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1 text-sm font-bold text-indigo-100">{appCount}</div>
     </div>
@@ -534,8 +534,8 @@ const Header: React.FC<{
         <div className="font-tech text-4xl leading-none">{clock.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })}</div>
         <div className="mt-1 text-base text-slate-400">{formatSpanishDate(clock)}</div>
       </div>
-      <button onClick={onPower} className="flex h-14 w-14 items-center justify-center rounded-[16px] border border-cyan-300/30 bg-cyan-300/15 text-cyan-100">
-        <Power size={26} />
+      <button onClick={onPower} className="flex h-[52px] w-[52px] items-center justify-center rounded-[18px] border border-cyan-300/25 bg-cyan-300/10 text-cyan-100">
+        <Power size={25} />
       </button>
     </div>
   </header>
@@ -544,32 +544,30 @@ const Header: React.FC<{
 const HeroPanel: React.FC<{
   focusedItem: LauncherItem | ActionItem | null;
   activeTab: TabId;
-  deviceInfo: DeviceInfo | null;
   onRun: () => void;
   onRefresh: () => void;
-}> = ({ focusedItem, activeTab, deviceInfo, onRun, onRefresh }) => {
+}> = ({ focusedItem, activeTab, onRun, onRefresh }) => {
   const Icon = focusedItem && 'action' in focusedItem ? focusedItem.icon : AppWindow;
 
   return (
-    <section className="mt-4 flex h-36 shrink-0 items-center justify-between gap-5 overflow-hidden rounded-[26px] border border-white/10 bg-gradient-to-r from-slate-950/90 via-indigo-950/45 to-cyan-950/35 p-5">
+    <section className="mt-5 flex h-32 shrink-0 items-center justify-between gap-5 overflow-hidden rounded-[30px] border border-white/10 bg-gradient-to-r from-white/[0.075] via-indigo-500/10 to-cyan-400/10 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
       <div className="flex min-w-0 items-center gap-5">
         <AppArtwork item={focusedItem} icon={Icon} size="hero" />
         <div className="min-w-0">
           <div className="font-tech text-xs font-bold uppercase tracking-[0.28em] text-cyan-200">{getHeroLabel(activeTab)}</div>
-          <h1 className="mt-2 line-clamp-1 text-4xl font-black leading-none text-white">{focusedItem?.title ?? 'Elegí qué ver'}</h1>
-          <p className="mt-2 line-clamp-1 max-w-3xl text-lg leading-snug text-slate-300">
-            {focusedItem?.description ?? 'Tus apps de entretenimiento primero, controles reales y navegación pensada para control remoto.'}
+          <h1 className="mt-1 line-clamp-1 text-[2.35rem] font-black leading-none text-white">{focusedItem?.title ?? 'Elegí qué ver'}</h1>
+          <p className="mt-2 line-clamp-1 max-w-3xl text-base leading-snug text-slate-300">
+            {activeTab === 'home' ? 'Inicio ordenado para mirar, jugar o escuchar sin buscar entre herramientas.' : focusedItem?.description ?? 'Acciones reales, navegación por control remoto y apps instaladas.'}
           </p>
         </div>
       </div>
-      <div className="grid w-56 shrink-0 gap-3">
-        <button onClick={onRun} className="h-14 rounded-[16px] bg-cyan-300 text-xl font-black text-slate-950">
+      <div className="grid w-52 shrink-0 gap-3">
+        <button onClick={onRun} className="h-[52px] rounded-[17px] bg-cyan-300 text-lg font-black text-slate-950 shadow-[0_14px_36px_rgba(34,211,238,0.22)]">
           {activeTab === 'store' ? 'Buscar' : 'Abrir'}
         </button>
-        <button onClick={onRefresh} className="h-12 rounded-[16px] border border-white/10 bg-white/5 text-base font-bold text-slate-100">
+        <button onClick={onRefresh} className="h-11 rounded-[17px] border border-white/10 bg-white/5 text-sm font-bold text-slate-100">
           Actualizar
         </button>
-        {deviceInfo && <div className="truncate text-center text-xs text-slate-500">Android {deviceInfo.androidVersion}</div>}
       </div>
     </section>
   );
@@ -585,12 +583,12 @@ const TabButton: React.FC<{
   return (
     <button
       onClick={onClick}
-      className={`relative flex h-16 w-full items-center gap-3 rounded-[18px] border px-4 text-left text-xl font-black ${
-        isActive ? 'border-cyan-300/35 bg-white/10 text-white' : 'border-white/5 bg-white/[0.035] text-slate-400'
+      className={`relative flex h-14 w-full items-center gap-3 rounded-[18px] border px-4 text-left text-lg font-black ${
+        isActive ? 'border-cyan-300/30 bg-white/[0.12] text-white shadow-[0_12px_34px_rgba(34,211,238,0.08)]' : 'border-transparent bg-transparent text-slate-500'
       } ${isFocused ? 'outline outline-3 outline-offset-2 outline-cyan-300' : ''}`}
     >
-      {isActive && <span className="absolute left-0 top-1/2 h-9 w-1 -translate-y-1/2 rounded-r-full bg-cyan-300" />}
-      <Icon size={26} />
+      {isActive && <span className="absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-cyan-300" />}
+      <Icon size={24} />
       <span>{tab.label}</span>
     </button>
   );
@@ -606,8 +604,8 @@ const SectionTitle: React.FC<{ activeTab: TabId; isLoadingApps: boolean; query: 
   };
 
   return (
-    <div className="flex h-10 shrink-0 items-center justify-between">
-      <h2 className="font-tech text-3xl font-black text-white">{titleByTab[activeTab]}</h2>
+    <div className="flex h-9 shrink-0 items-center justify-between">
+      <h2 className="font-tech text-[2rem] font-black leading-none text-white">{titleByTab[activeTab]}</h2>
       <div className="flex items-center gap-3">
         {query && <span className="rounded-[10px] bg-cyan-300/10 px-3 py-1 text-sm font-bold text-cyan-200">{resultCount} resultados</span>}
         {isLoadingApps && <span className="rounded-[10px] bg-indigo-400/10 px-3 py-1 text-sm font-bold text-indigo-200">Leyendo apps...</span>}
@@ -638,35 +636,39 @@ const LauncherTile: React.FC<{
         event.preventDefault();
         onMenu();
       }}
-      className={`relative flex h-full flex-col justify-between rounded-[22px] border text-left ${isHome ? 'p-5' : 'p-4'} ${
-        isFocused ? 'border-cyan-300 bg-gradient-to-br from-indigo-500 to-cyan-500 text-white' : 'border-white/10 bg-slate-950/60 text-slate-100'
+      className={`relative h-full overflow-hidden rounded-[24px] border text-left ${isHome ? 'p-4' : 'p-4'} ${
+        isFocused ? 'border-cyan-200 bg-gradient-to-br from-sky-500 via-cyan-500 to-blue-600 text-white shadow-[0_24px_70px_rgba(14,165,233,0.34)]' : 'border-white/[0.08] bg-white/[0.045] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
       }`}
     >
-      <div className="flex items-start justify-between">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-black/20 opacity-80" />
+      <div className={`relative flex h-full min-w-0 flex-col ${isHome ? 'items-center justify-center text-center' : 'justify-between'}`}>
+        <div className="flex w-full items-start justify-between">
+          <span />
+          {isFavorite && <Star size={18} className="fill-cyan-200 text-cyan-200" />}
+        </div>
         <AppArtwork item={item} icon={Icon} size={isHome ? 'large' : 'normal'} />
-        {isFavorite && <Star size={18} className="fill-cyan-300 text-cyan-300" />}
-      </div>
-      <div className="min-w-0">
-        <div className={`${isHome ? 'text-[1.45rem]' : 'text-xl'} line-clamp-2 font-black leading-[1.05]`}>{item.title}</div>
+        <div className="min-w-0">
+          <div className={`${isHome ? 'mt-4 text-[1.35rem]' : 'text-xl'} line-clamp-2 font-black leading-[1.05]`}>{item.title}</div>
         {!isHome && (
           <div className={`mt-1 line-clamp-1 text-sm ${isFocused ? 'text-indigo-50' : 'text-slate-400'}`}>
             {'isInstalled' in item && item.isInstalled ? 'Instalada' : item.description}
           </div>
         )}
+        </div>
       </div>
     </button>
   );
 };
 
 const AppArtwork: React.FC<{ item: LauncherItem | ActionItem | null; icon: React.ElementType; size: 'normal' | 'large' | 'hero' }> = ({ item, icon: Icon, size }) => {
-  const dimensions = size === 'hero' ? 'h-20 w-20 rounded-[22px]' : size === 'large' ? 'h-[72px] w-[72px] rounded-[20px]' : 'h-16 w-16 rounded-[18px]';
-  const iconSize = size === 'hero' ? 40 : size === 'large' ? 36 : 32;
+  const dimensions = size === 'hero' ? 'h-[72px] w-[72px] rounded-[22px]' : size === 'large' ? 'h-[86px] w-[86px] rounded-[24px]' : 'h-16 w-16 rounded-[18px]';
+  const iconSize = size === 'hero' ? 36 : size === 'large' ? 42 : 32;
 
   if (item && 'imageUrl' in item && item.imageUrl) {
     return (
       <img
         src={item.imageUrl}
-        className={`${dimensions} shrink-0 bg-black/35 object-contain p-1.5`}
+        className={`${dimensions} shrink-0 bg-black/25 object-contain p-2 shadow-[0_16px_38px_rgba(0,0,0,0.26)]`}
         onError={(event) => {
           event.currentTarget.style.display = 'none';
         }}
@@ -675,7 +677,7 @@ const AppArtwork: React.FC<{ item: LauncherItem | ActionItem | null; icon: React
   }
 
   return (
-    <div className={`${dimensions} flex shrink-0 items-center justify-center bg-white/10 text-cyan-200`}>
+    <div className={`${dimensions} flex shrink-0 items-center justify-center bg-white/10 text-cyan-200 shadow-[0_16px_38px_rgba(0,0,0,0.24)]`}>
       <Icon size={iconSize} />
     </div>
   );
@@ -783,7 +785,7 @@ function matches(text: string, words: string[]) {
 }
 
 function getColumnCount(activeTab: TabId) {
-  if (activeTab === 'home') return window.innerWidth >= 1600 ? 4 : 3;
+  if (activeTab === 'home') return window.innerWidth >= 1600 ? 5 : 3;
   return window.innerWidth >= 1600 ? 5 : 4;
 }
 
