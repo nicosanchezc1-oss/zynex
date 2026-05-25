@@ -204,6 +204,8 @@ public class MainActivity extends Activity {
                 action = Settings.ACTION_DISPLAY_SETTINGS;
             } else if ("account".equals(panel)) {
                 action = Settings.ACTION_SYNC_SETTINGS;
+            } else if ("applications".equals(panel)) {
+                action = Settings.ACTION_APPLICATION_SETTINGS;
             } else {
                 action = Settings.ACTION_SETTINGS;
             }

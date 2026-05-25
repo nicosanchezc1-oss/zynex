@@ -1,952 +1,621 @@
-
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { GridItem } from './components/GridItem';
-import { Clock } from './components/Clock';
-import { VoiceVisualizer } from './components/VoiceVisualizer';
-import { SettingsOverlay } from './components/SettingsOverlay';
-import { SystemStatusBar } from './components/SystemStatusBar';
-import { MediaPlayer } from './components/MediaPlayer';
-import { Screensaver } from './components/Screensaver';
-import { ContextMenu } from './components/ContextMenu';
-import { WeatherModal } from './components/WeatherModal';
-import { VolumeHUD } from './components/VolumeHUD';
-import { Toast } from './components/Toast';
-import { VirtualKeyboard } from './components/VirtualKeyboard';
-import { ZenithStore } from './components/ZenithStore';
-import { SystemOptimizer } from './components/SystemOptimizer';
-import { SmartHomeWidget } from './components/SmartHomeWidget';
-import { MoodSelector } from './components/MoodSelector';
-import { ParticleBackground } from './components/ParticleBackground'; 
-import { NeuralCore } from './components/NeuralCore'; 
-import { SpeedFlux } from './components/SpeedFlux'; 
-import { InputHub } from './components/InputHub'; 
-import { OmniSearch } from './components/OmniSearch'; 
-import { GameBooster } from './components/GameBooster'; 
-import { ZenithDeck } from './components/ZenithDeck'; 
-import { CineVerse } from './components/CineVerse'; 
-import { FileManager } from './components/FileManager'; 
-import { TerminalModal } from './components/TerminalModal'; 
-import { ProfileCreator } from './components/ProfileCreator'; 
-import { ZenithDock } from './components/ZenithDock';
-import { BootSequence } from './components/BootSequence';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  AppWindow,
+  Bluetooth,
+  ExternalLink,
+  FolderOpen,
+  Gamepad2,
+  Grid3X3,
+  HardDrive,
+  Home,
+  Info,
+  MonitorCog,
+  Play,
+  Power,
+  RefreshCw,
+  Search,
+  Settings,
+  Shield,
+  Trash2,
+  Wifi,
+} from 'lucide-react';
+import { STORE_APPS } from './constants';
 import { nativeBridge } from './services/nativeBridge';
-import { generateRecommendations } from './services/geminiService';
-import { CATEGORIES, INITIAL_APPS, SETTINGS_ITEMS, PROFILES, STORE_APPS, MOODS, THEMES, TOOL_ITEMS } from './constants';
-import { LauncherItem, FocusSection, ItemType, UserProfile, MoodType, ThemeType } from './types';
-import { Mic, Loader2, Sparkles, Search, Play, Info, Plus, ChevronDown, User, Bell, Aperture, Layers } from 'lucide-react';
-import { playSound } from './utils/sound';
+import { ItemType, LauncherItem } from './types';
 
-// Configuration
-const COLS = 4;
-const GAP = 40; 
-const SCREENSAVER_TIMEOUT = 30000;
+type TabId = 'home' | 'apps' | 'store' | 'tools' | 'settings';
+type FocusArea = 'tabs' | 'grid';
 
-export default function App() {
-  // -- Initialization State --
-  const [isBooting, setIsBooting] = useState(true);
+interface ActionItem {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  action: () => void;
+}
 
-  // -- Global Mouse Tracking (Spotlight) --
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  
-  // -- Screensaver State --
-  const [isScreensaverActive, setIsScreensaverActive] = useState(false);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+interface ToastState {
+  text: string;
+  tone?: 'ok' | 'warn' | 'error';
+}
 
-  // -- Context Menu State --
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, item: LauncherItem | null } | null>(null);
+const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
+  { id: 'home', label: 'Inicio', icon: Home },
+  { id: 'apps', label: 'Apps', icon: Grid3X3 },
+  { id: 'store', label: 'Tienda', icon: Search },
+  { id: 'tools', label: 'Tools', icon: HardDrive },
+  { id: 'settings', label: 'Ajustes', icon: Settings },
+];
 
-  // -- State --
-  const [activeCategory, setActiveCategory] = useState<string>('home');
-  const [focusSection, setFocusSection] = useState<FocusSection>('SIDEBAR'); 
-  const [focusedIndex, setFocusedIndex] = useState<number>(0);
-  const [currentUser, setCurrentUser] = useState<UserProfile>(PROFILES[0]);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  
-  // Overlays State - "No Dead Ends" Policy
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isWeatherOpen, setIsWeatherOpen] = useState(false);
-  const [isMoodSelectorOpen, setIsMoodSelectorOpen] = useState(false);
-  const [isNeuralCoreOpen, setIsNeuralCoreOpen] = useState(false); 
-  const [isSpeedFluxOpen, setIsSpeedFluxOpen] = useState(false); 
-  const [isInputHubOpen, setIsInputHubOpen] = useState(false); 
-  const [isOmniSearchOpen, setIsOmniSearchOpen] = useState(false); 
-  const [isZenithDeckOpen, setIsZenithDeckOpen] = useState(false); 
-  const [isFileManagerOpen, setIsFileManagerOpen] = useState(false); 
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false); 
-  const [isProfileCreatorOpen, setIsProfileCreatorOpen] = useState(false); 
+const demoApps: LauncherItem[] = [
+  {
+    id: 'youtube-tv',
+    title: 'YouTube',
+    description: 'App sugerida',
+    type: ItemType.APP,
+    packageName: 'com.google.android.youtube.tv',
+  },
+  {
+    id: 'netflix-tv',
+    title: 'Netflix',
+    description: 'App sugerida',
+    type: ItemType.APP,
+    packageName: 'com.netflix.ninja',
+  },
+  {
+    id: 'spotify-tv',
+    title: 'Spotify',
+    description: 'App sugerida',
+    type: ItemType.APP,
+    packageName: 'com.spotify.tv.android',
+  },
+];
 
-  // CineVerse State
-  const [cineVerse, setCineVerse] = useState<{ isOpen: boolean, movie: LauncherItem | null }>({ isOpen: false, movie: null });
+const tvStoreApps: LauncherItem[] = STORE_APPS.map((app) => ({
+  ...app,
+  type: ItemType.STORE,
+}));
 
-  // PiP State
-  const [isPipActive, setIsPipActive] = useState(false);
+const App: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabId>('home');
+  const [focusArea, setFocusArea] = useState<FocusArea>('grid');
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const [apps, setApps] = useState<LauncherItem[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() => readFavorites());
+  const [isLoadingApps, setIsLoadingApps] = useState(true);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [clock, setClock] = useState(() => new Date());
+  const [contextItem, setContextItem] = useState<LauncherItem | null>(null);
 
-  // HyperLaunch / GameBooster State
-  const [hyperLaunch, setHyperLaunch] = useState<{ isOpen: boolean, item: LauncherItem | null }>({ isOpen: false, item: null });
-  
-  const [activeSettingsItem, setActiveSettingsItem] = useState<LauncherItem | null>(null);
-  const [currentWifi, setCurrentWifi] = useState<string | null>(null);
-  const [currentMood, setCurrentMood] = useState<MoodType>('FOCUS');
-  
-  // -- Theme State --
-  const [currentTheme, setCurrentTheme] = useState<ThemeType>('NIGHT');
-  const activeThemeConfig = THEMES.find(t => t.id === currentTheme) || THEMES[0];
-  
-  // Smart Home State
-  const [areLightsOn, setAreLightsOn] = useState(true);
-
-  // Keyboard State
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const [keyboardTarget, setKeyboardTarget] = useState<'search' | null>(null);
-
-  // Feedback State
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Interaction State
-  const [launchingItem, setLaunchingItem] = useState<LauncherItem | null>(null);
-
-  // Data state
-  const [items, setItems] = useState<LauncherItem[]>(INITIAL_APPS);
-  const [bgImage, setBgImage] = useState<string>('https://images.unsplash.com/photo-1614850523060-8da1d56ae167?q=80&w=2600&auto=format&fit=crop');
-  
-  // AI State
-  const [isListening, setIsListening] = useState(false);
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-
-  // Derived Mood Config
-  const activeMoodConfig = MOODS.find(m => m.id === currentMood) || MOODS[0];
-
-  // -- Native App Loading (Background) --
-  useEffect(() => {
-      // We load native apps in background while booting
-      if (nativeBridge.isNative()) {
-        const loadApps = async () => {
-            try {
-                const realApps = await nativeBridge.getInstalledApps();
-                if (realApps.length > 0) {
-                    setItems(prev => {
-                        const localContent = prev.filter(i => i.type !== ItemType.APP);
-                        return [...localContent, ...realApps];
-                    });
-                }
-            } catch (e) {
-                console.error("Failed to load native apps", e);
-            }
-        };
-        loadApps();
-      }
+  const showToast = useCallback((text: string, tone: ToastState['tone'] = 'ok') => {
+    setToast({ text, tone });
+    window.setTimeout(() => setToast(null), 2600);
   }, []);
 
-  // -- Idle Timer Logic --
-  const resetIdleTimer = useCallback(() => {
-    if (isScreensaverActive) setIsScreensaverActive(false);
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    
-    idleTimerRef.current = setTimeout(() => {
-        setIsScreensaverActive(true);
-    }, SCREENSAVER_TIMEOUT);
-  }, [isScreensaverActive]);
+  const loadApps = useCallback(async () => {
+    setIsLoadingApps(true);
+    try {
+      const nativeApps = await nativeBridge.getInstalledApps();
+      const sortedApps = nativeApps
+        .filter((app) => app.packageName)
+        .sort((first, second) => first.title.localeCompare(second.title));
+
+      setApps(sortedApps.length ? sortedApps : demoApps);
+      showToast(sortedApps.length ? `${sortedApps.length} apps detectadas` : 'Modo demo sin puente Android', sortedApps.length ? 'ok' : 'warn');
+    } catch (error) {
+      console.error(error);
+      setApps(demoApps);
+      showToast('No se pudieron cargar apps nativas', 'error');
+    } finally {
+      setIsLoadingApps(false);
+    }
+  }, [showToast]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', resetIdleTimer);
-    window.addEventListener('keydown', resetIdleTimer);
-    window.addEventListener('click', resetIdleTimer);
-    resetIdleTimer(); // Initial start
-    return () => {
-        window.removeEventListener('mousemove', resetIdleTimer);
-        window.removeEventListener('keydown', resetIdleTimer);
-        window.removeEventListener('click', resetIdleTimer);
-        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    };
-  }, [resetIdleTimer]);
+    loadApps();
+    const timer = window.setInterval(() => setClock(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadApps]);
 
-  // -- Mouse Tracker --
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-        setMousePos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
+    window.localStorage.setItem('zynex:favorites', JSON.stringify(favorites));
+  }, [favorites]);
 
-  // -- Helpers --
-  const getItemsForCategory = useCallback(() => {
-    switch (activeCategory) {
-      case 'home': return items.slice(0, 12); 
-      case 'apps': return items.filter(i => i.type === ItemType.APP);
-      case 'movies': return items.filter(i => i.type === ItemType.MOVIE);
-      case 'tools': return TOOL_ITEMS;
-      case 'settings': return SETTINGS_ITEMS;
-      case 'store': return STORE_APPS; 
-      default: return [];
-    }
-  }, [activeCategory, items]);
+  const favoriteApps = useMemo(() => {
+    const selected = favorites
+      .map((id) => apps.find((app) => app.id === id))
+      .filter((app): app is LauncherItem => Boolean(app));
 
-  const currentGridItems = getItemsForCategory();
-  const focusedItem = activeCategory === 'store' ? STORE_APPS[focusedIndex] : currentGridItems[focusedIndex];
+    return selected.length ? selected : apps.slice(0, 8);
+  }, [apps, favorites]);
 
-  // -- Actions --
-  const showToast = (msg: string) => { setToastMessage(msg); };
+  const tools = useMemo<ActionItem[]>(() => [
+    {
+      id: 'refresh',
+      title: 'Actualizar apps',
+      description: 'Releer aplicaciones instaladas',
+      icon: RefreshCw,
+      action: loadApps,
+    },
+    {
+      id: 'files',
+      title: 'Archivos',
+      description: 'Abrir selector del sistema',
+      icon: FolderOpen,
+      action: () => {
+        if (!nativeBridge.openFileManager()) showToast('No hay gestor de archivos disponible', 'warn');
+      },
+    },
+    {
+      id: 'playstore',
+      title: 'Buscar apps',
+      description: 'Abrir tienda para instalar',
+      icon: ExternalLink,
+      action: () => nativeBridge.openAppStore('com.android.vending'),
+    },
+    {
+      id: 'game',
+      title: 'Modo juego',
+      description: 'Prioriza una interfaz liviana',
+      icon: Gamepad2,
+      action: () => showToast('Zynex ya esta en modo liviano para TV Box'),
+    },
+  ], [loadApps, showToast]);
 
-  const handleMoodChange = (mood: MoodType) => {
-      setCurrentMood(mood);
-      const config = MOODS.find(m => m.id === mood)!;
-      playSound('success');
-      setIsMoodSelectorOpen(false);
-      showToast(`Ambiente: ${config.label} activado`);
-  };
+  const settings = useMemo<ActionItem[]>(() => [
+    {
+      id: 'system',
+      title: 'Ajustes completos',
+      description: 'Abrir panel principal de Android',
+      icon: Settings,
+      action: () => nativeBridge.openSystemSettings('settings'),
+    },
+    {
+      id: 'wifi',
+      title: 'Red e Internet',
+      description: 'Abrir configuracion de Wi-Fi',
+      icon: Wifi,
+      action: () => nativeBridge.openSystemSettings('wifi'),
+    },
+    {
+      id: 'bluetooth',
+      title: 'Bluetooth',
+      description: 'Mandos y audio',
+      icon: Bluetooth,
+      action: () => nativeBridge.openSystemSettings('bluetooth'),
+    },
+    {
+      id: 'display',
+      title: 'Pantalla',
+      description: 'Resolucion y escala',
+      icon: MonitorCog,
+      action: () => nativeBridge.openSystemSettings('display'),
+    },
+    {
+      id: 'security',
+      title: 'Apps instaladas',
+      description: 'Administrar permisos y datos',
+      icon: Shield,
+      action: () => nativeBridge.openSystemSettings('applications'),
+    },
+  ], []);
 
-  // The actual final launch function
-  const executeLaunch = (item: LauncherItem) => {
-      // 1. Movies -> CineVerse
-      if (item.type === ItemType.MOVIE) {
-          setCineVerse({ isOpen: true, movie: item });
-          playSound('select');
-          return;
-      }
+  const currentItems = useMemo(() => {
+    if (activeTab === 'home') return favoriteApps;
+    if (activeTab === 'apps') return apps;
+    if (activeTab === 'store') return tvStoreApps;
+    if (activeTab === 'tools') return tools;
+    return settings;
+  }, [activeTab, apps, favoriteApps, settings, tools]);
 
-      // 2. Specific Tools
-      if (item.id === 'file_manager') {
-          if (nativeBridge.isNative() && nativeBridge.openFileManager()) {
-              showToast('Abriendo gestor de archivos');
-              return;
-          }
-          setIsFileManagerOpen(true);
-          playSound('select');
-          return;
-      }
-      if (item.id === 'terminal') {
-          if (nativeBridge.isNative()) {
-              nativeBridge.openAppStore('com.termux');
-              showToast('Buscando terminal compatible');
-              return;
-          }
-          setIsTerminalOpen(true);
-          playSound('select');
-          return;
-      }
-      if (item.id === 'speedtest') {
-          setIsSpeedFluxOpen(true);
-          playSound('select');
-          return;
-      }
-      if (item.id === 'inputs') {
-          setIsInputHubOpen(true);
-          playSound('select');
-          return;
-      }
+  const focusedItem = currentItems[focusedIndex] ?? null;
 
-      // 3. Settings
-      if (item.type === ItemType.SETTING) {
-          if (nativeBridge.isNative()) {
-              nativeBridge.openSystemSettings(item.id);
-              showToast(`Abriendo ${item.title}`);
-              return;
-          }
-          setActiveSettingsItem(item);
-          setIsSettingsOpen(true);
-          playSound('select');
-          return;
-      }
-
-      // 4. Widgets (Non-launchable directly except via interactions inside them)
-      if (item.type === ItemType.WIDGET || item.type === ItemType.SMART_HOME) return;
-
-      // 5. Standard Apps (Game Booster Effect)
-      setLaunchingItem(item);
-      setTimeout(() => {
-        if (item.type === ItemType.APP && item.packageName) {
-            const success = nativeBridge.launchApp(item.packageName);
-            if (!success) {
-                setLaunchingItem(null);
-                showToast(`Error: No se pudo abrir ${item.title}`);
-                playSound('error');
-                return;
-            }
-        }
-        setTimeout(() => setLaunchingItem(null), 2000); 
-    }, 500); 
-  };
-
-  const handleLaunch = (item: LauncherItem) => {
-    playSound('select');
-
-    // Trigger HyperLaunch for Apps (Game Booster effect) only for Apps, not Tools/Movies
-    if (item.type === ItemType.APP && item.packageName) { 
-        setHyperLaunch({ isOpen: true, item: item });
-        return;
-    }
-
-    executeLaunch(item);
-  };
-
-  const onHyperLaunchComplete = () => {
-      if (hyperLaunch.item) {
-          executeLaunch(hyperLaunch.item);
-      }
-      setHyperLaunch({ isOpen: false, item: null });
-  };
-
-  const handleInstallApp = (app: LauncherItem) => {
-      if (nativeBridge.isNative() && app.packageName) {
-          nativeBridge.openAppStore(app.packageName);
-          showToast(`Abriendo Play Store: ${app.title}`);
-          return;
-      }
-      if (items.some(i => i.id === app.id)) return;
-      const newApp: LauncherItem = { ...app, type: ItemType.APP, color: 'from-blue-600 to-blue-400', isInstalled: true };
-      setItems(prev => [...prev, newApp]);
-      showToast(`${app.title} añadido a Aplicaciones`);
-  };
-
-  const handleContextAction = (action: 'open' | 'favorite' | 'share' | 'info' | 'uninstall', item: LauncherItem) => {
-      setContextMenu(null);
-
-      if (action === 'open') {
-          handleLaunch(item);
-          return;
-      }
-
-      if (action === 'favorite') {
-          showToast(`${item.title} añadido a favoritos`);
-          playSound('success');
-          return;
-      }
-
-      if (action === 'share') {
-          nativeBridge.shareText(item.title, `Mira ${item.title} en Zynex OS`);
-          showToast(`Compartiendo ${item.title}`);
-          return;
-      }
-
-      if (action === 'info') {
-          if (item.packageName && nativeBridge.isNative()) nativeBridge.openAppInfo(item.packageName);
-          else showToast(item.description || 'Sin detalles adicionales');
-          return;
-      }
-
-      if (action === 'uninstall') {
-          if (item.packageName && nativeBridge.isNative()) {
-              nativeBridge.uninstallApp(item.packageName);
-              showToast(`Abriendo desinstalador: ${item.title}`);
-          } else {
-              setItems(prev => prev.filter(existing => existing.id !== item.id));
-              showToast(`${item.title} quitado de Zynex`);
-          }
-      }
-  };
-
-  const handleContextMenu = (e: React.MouseEvent, item: LauncherItem) => {
-      e.preventDefault();
-      playSound('select');
-      setContextMenu({ x: e.clientX, y: e.clientY, item });
-  };
-
-  const handleCategorySelect = (id: string) => {
-    playSound('select');
-    setActiveCategory(id);
-    setFocusSection('GRID');
+  const selectTab = useCallback((tab: TabId) => {
+    setActiveTab(tab);
     setFocusedIndex(0);
-  };
+    setContextItem(null);
+  }, []);
 
-  const handleGeminiSearch = async () => {
-    if (!aiPrompt.trim()) return;
-    setIsLoadingAI(true);
-    playSound('select');
-    const response = await generateRecommendations(aiPrompt);
-    if (response && response.recommendations) {
-      playSound('success');
-      const newItems: LauncherItem[] = response.recommendations.map((rec, idx) => ({
-        id: `ai-${Date.now()}-${idx}`,
-        title: rec.title,
-        description: rec.description,
-        type: ItemType.MOVIE,
-        imageUrl: `https://picsum.photos/800/600?random=${Date.now() + idx}`,
-        color: 'from-purple-900 to-indigo-900'
-      }));
-      setItems(prev => [...newItems, ...prev]);
-      setActiveCategory('movies');
-      setFocusSection('GRID');
-      setFocusedIndex(0);
-      showToast(`Se encontraron ${newItems.length} resultados`);
-    } else {
-        playSound('error');
-    }
-    setIsLoadingAI(false);
-    setAiPrompt("");
-  };
-
-  const toggleMic = () => {
-    playSound('select');
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Navegador no soportado para voz.");
+  const launchApp = useCallback((item: LauncherItem) => {
+    if (!item.packageName) {
+      showToast(`${item.title} no tiene paquete asociado`, 'warn');
       return;
     }
-    if (isListening) {
-        setIsListening(false);
-        // @ts-ignore
-        window.recognition?.stop();
-        return;
+
+    const didLaunch = nativeBridge.launchApp(item.packageName);
+    showToast(didLaunch ? `Abriendo ${item.title}` : `No se pudo abrir ${item.title}`, didLaunch ? 'ok' : 'error');
+  }, [showToast]);
+
+  const runItem = useCallback((item: LauncherItem | ActionItem | null) => {
+    if (!item) return;
+
+    if ('action' in item) {
+      item.action();
+      return;
     }
-    setIsListening(true);
-    // @ts-ignore
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'es-ES';
-    // @ts-ignore
-    window.recognition = recognition;
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setAiPrompt(transcript);
-      setIsListening(false);
-      handleGeminiSearch(); 
-    };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    recognition.start();
-  };
 
-  const openSearchKeyboard = () => {
-      playSound('select');
-      setIsOmniSearchOpen(true); 
-  };
-
-  const handleKeyboardSubmit = (text: string) => {
-      playSound('success');
-      if (keyboardTarget === 'search') {
-          setAiPrompt(text);
-          setIsKeyboardOpen(false);
-          handleGeminiSearch();
-      }
-  };
-
-  const getScrollOffset = () => {
-    if (focusSection === 'SIDEBAR') return 0;
-    const row = Math.floor(focusedIndex / COLS);
-    const itemHeight = focusedItem?.type === ItemType.APP || focusedItem?.type === ItemType.WIDGET || focusedItem?.type === ItemType.SMART_HOME || focusedItem?.type === ItemType.TOOL ? 180 : 340; 
-    const rowHeight = itemHeight + GAP;
-    const offset = row * rowHeight;
-    if (row === 0) return 0;
-    return -offset;
-  };
-
-  // Keyboard Logic
-  useEffect(() => {
-    // Block interaction if any overlay is open
-    if (isKeyboardOpen || isMoodSelectorOpen || isNeuralCoreOpen || isSpeedFluxOpen || isInputHubOpen || isOmniSearchOpen || hyperLaunch.isOpen || isZenithDeckOpen || cineVerse.isOpen || isFileManagerOpen || isTerminalOpen || isProfileCreatorOpen) return; 
-    if (launchingItem || isBooting || isSettingsOpen || contextMenu || isWeatherOpen) return; 
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '+' || e.key === '-' || e.key === '=') return;
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
-      if (e.key === 'Escape') {
-        playSound('back');
-        setFocusSection('SIDEBAR');
-        setIsProfileMenuOpen(false);
-        setContextMenu(null);
+    if (item.type === ItemType.STORE) {
+      if (!item.packageName) {
+        showToast('Esta app no tiene enlace de tienda', 'warn');
         return;
       }
-      
-       if (focusSection === 'SIDEBAR') {
-        const catIndex = CATEGORIES.findIndex(c => c.id === activeCategory);
-        switch (e.key) {
-          case 'ArrowUp':
-            playSound('hover');
-            const prev = Math.max(0, catIndex - 1);
-            setActiveCategory(CATEGORIES[prev].id);
-            break;
-          case 'ArrowDown':
-            playSound('hover');
-            const next = Math.min(CATEGORIES.length - 1, catIndex + 1);
-            setActiveCategory(CATEGORIES[next].id);
-            break;
-          case 'ArrowRight':
-          case 'Enter':
-            playSound('hover');
-            setFocusSection('GRID');
-            setFocusedIndex(0);
-            break;
-        }
-      } else if (focusSection === 'GRID') {
-        const gridItems = activeCategory === 'store' ? STORE_APPS : currentGridItems;
-        const totalItems = gridItems.length;
-        const row = Math.floor(focusedIndex / COLS);
-        const col = focusedIndex % COLS;
+      nativeBridge.openAppStore(item.packageName);
+      showToast(`Buscando ${item.title}`);
+      return;
+    }
 
-        switch (e.key) {
-          case 'ArrowLeft':
-            playSound('hover');
-            if (col === 0) setFocusSection('SIDEBAR');
-            else setFocusedIndex(focusedIndex - 1);
-            break;
-          case 'ArrowRight':
-            playSound('hover');
-            if (focusedIndex < totalItems - 1) setFocusedIndex(focusedIndex + 1);
-            break;
-          case 'ArrowUp':
-             playSound('hover');
-             if (row > 0) setFocusedIndex(focusedIndex - COLS);
-             break;
-          case 'ArrowDown':
-             playSound('hover');
-             if (focusedIndex + COLS < totalItems) setFocusedIndex(focusedIndex + COLS);
-             break;
-           case 'Enter':
-             if (activeCategory === 'store') {
-                 const app = STORE_APPS[focusedIndex];
-                 if(app) {
-                     const isInstalled = items.some(a => a.id === app.id);
-                     if(isInstalled) handleLaunch(app);
-                     else handleInstallApp(app);
-                 }
-             } else if (focusedItem) {
-                 handleLaunch(focusedItem);
-             }
-             break;
+    launchApp(item);
+  }, [launchApp, showToast]);
+
+  const toggleFavorite = useCallback((item: LauncherItem) => {
+    setFavorites((current) => {
+      if (current.includes(item.id)) return current.filter((id) => id !== item.id);
+      return [item.id, ...current].slice(0, 12);
+    });
+    showToast(favorites.includes(item.id) ? 'Quitado de favoritos' : 'Anadido a inicio');
+  }, [favorites, showToast]);
+
+  const moveFocus = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
+    const columns = getColumnCount();
+    setFocusedIndex((index) => {
+      const maxIndex = Math.max(0, currentItems.length - 1);
+      if (direction === 'left') return Math.max(0, index - 1);
+      if (direction === 'right') return Math.min(maxIndex, index + 1);
+      if (direction === 'up') return Math.max(0, index - columns);
+      return Math.min(maxIndex, index + columns);
+    });
+  }, [currentItems.length]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (contextItem) {
+        if (event.key === 'Escape' || event.key === 'Backspace') {
+          setContextItem(null);
+          event.preventDefault();
         }
+        return;
+      }
+
+      const tabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+
+      switch (event.key) {
+        case 'ArrowLeft':
+          if (focusArea === 'tabs') selectTab(tabs[Math.max(0, tabIndex - 1)].id);
+          else moveFocus('left');
+          event.preventDefault();
+          break;
+        case 'ArrowRight':
+          if (focusArea === 'tabs') selectTab(tabs[Math.min(tabs.length - 1, tabIndex + 1)].id);
+          else moveFocus('right');
+          event.preventDefault();
+          break;
+        case 'ArrowUp':
+          if (focusArea === 'grid' && focusedIndex < getColumnCount()) setFocusArea('tabs');
+          else if (focusArea === 'grid') moveFocus('up');
+          event.preventDefault();
+          break;
+        case 'ArrowDown':
+          if (focusArea === 'tabs') setFocusArea('grid');
+          else moveFocus('down');
+          event.preventDefault();
+          break;
+        case 'Enter':
+        case 'NumpadEnter':
+          if (focusArea === 'grid') runItem(focusedItem);
+          event.preventDefault();
+          break;
+        case 'ContextMenu':
+        case 'm':
+        case 'M':
+          if (focusedItem && !('action' in focusedItem)) setContextItem(focusedItem);
+          event.preventDefault();
+          break;
+        case 'Backspace':
+        case 'Escape':
+          selectTab('home');
+          event.preventDefault();
+          break;
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [focusSection, focusedIndex, activeCategory, currentGridItems, launchingItem, isBooting, isSettingsOpen, contextMenu, focusedItem, isWeatherOpen, isKeyboardOpen, isMoodSelectorOpen, isNeuralCoreOpen, isSpeedFluxOpen, isInputHubOpen, isOmniSearchOpen, hyperLaunch, isZenithDeckOpen, items, cineVerse, isFileManagerOpen, isTerminalOpen, isProfileCreatorOpen]);
+  }, [activeTab, contextItem, focusArea, focusedIndex, focusedItem, moveFocus, runItem, selectTab]);
 
-  // --- MOVED UP: Hook was previously after return, causing error #310 ---
-  useEffect(() => {
-    if (focusedItem?.imageUrl && !isSettingsOpen && !isScreensaverActive && !isWeatherOpen && !isNeuralCoreOpen && activeCategory !== 'store' && activeCategory !== 'tools' && !focusedItem.videoUrl) {
-      const timer = setTimeout(() => {
-        setBgImage(focusedItem.imageUrl!);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [focusedIndex, focusedItem, isSettingsOpen, isScreensaverActive, isWeatherOpen, isNeuralCoreOpen, activeCategory]);
-  // ---------------------------------------------------------------------
-
-  // Handle Boot Sequence (Conditional Return is now safe as hooks are above)
-  if (isBooting) {
-      return <BootSequence onComplete={() => setIsBooting(false)} />;
-  }
-
-  // -- Render --
-  // Added "animate-scaleDown" to simulate the UI settling in after the big bang entry
   return (
-    <div 
-        className={`w-full h-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] selection:bg-[var(--accent)]/30 ${activeThemeConfig.font} cursor-default animate-scaleDown`} 
-        onContextMenu={(e) => e.preventDefault()}
-        style={activeThemeConfig.vars as React.CSSProperties}
-    >
-      <style>{`
-          @keyframes scaleDown {
-              0% { transform: scale(1.05); opacity: 0; }
-              100% { transform: scale(1); opacity: 1; }
-          }
-          .animate-scaleDown {
-              animation: scaleDown 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-          }
-      `}</style>
+    <div className="min-h-screen w-screen overflow-hidden bg-[#10130f] text-[#f4f0df]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_12%,rgba(214,177,84,0.18),transparent_26rem),radial-gradient(circle_at_86%_80%,rgba(52,211,153,0.13),transparent_28rem)]" />
+      <div className="relative z-10 flex h-screen flex-col px-8 py-6">
+        <Header clock={clock} appCount={apps.length} isNative={nativeBridge.isNative()} />
 
-      {/* GLOBAL LIGHTING OVERLAY (Smart Home) */}
-      <div 
-        className={`fixed inset-0 z-[10] bg-black pointer-events-none transition-opacity duration-1000 ease-in-out ${areLightsOn ? 'opacity-0' : 'opacity-95'}`}
-      />
+        <nav className="mt-5 flex h-16 shrink-0 items-center gap-3 rounded-[10px] border border-white/10 bg-black/20 p-2">
+          {tabs.map((tab) => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              isActive={activeTab === tab.id}
+              isFocused={focusArea === 'tabs' && activeTab === tab.id}
+              onClick={() => selectTab(tab.id)}
+            />
+          ))}
+        </nav>
 
-      {/* --- ALL OVERLAYS --- */}
-      <MoodSelector 
-         currentMood={currentMood} 
-         onSelect={handleMoodChange}
-         isOpen={isMoodSelectorOpen}
-         onClose={() => setIsMoodSelectorOpen(false)}
-      />
-      <NeuralCore isOpen={isNeuralCoreOpen} onClose={() => setIsNeuralCoreOpen(false)} />
-      <SpeedFlux isOpen={isSpeedFluxOpen} onClose={() => setIsSpeedFluxOpen(false)} />
-      <InputHub isOpen={isInputHubOpen} onClose={() => setIsInputHubOpen(false)} />
-      <OmniSearch 
-        isOpen={isOmniSearchOpen} 
-        onClose={() => setIsOmniSearchOpen(false)} 
-        items={[...items, ...SETTINGS_ITEMS, ...STORE_APPS, ...TOOL_ITEMS]}
-        onLaunch={handleLaunch}
-      />
-      <ZenithDeck 
-        isOpen={isZenithDeckOpen} 
-        onClose={() => setIsZenithDeckOpen(false)} 
-        onLaunchSettings={() => { setIsZenithDeckOpen(false); setIsSettingsOpen(true); }}
-      />
-      <GameBooster 
-        isOpen={hyperLaunch.isOpen}
-        appName={hyperLaunch.item?.title || ''}
-        onComplete={onHyperLaunchComplete}
-      />
-      <CineVerse 
-        isOpen={cineVerse.isOpen} 
-        movie={cineVerse.movie} 
-        onClose={() => setCineVerse({ isOpen: false, movie: null })} 
-        onPlay={() => { setIsPipActive(true); showToast(`Reproduciendo en PiP`); }}
-      />
-      <FileManager isOpen={isFileManagerOpen} onClose={() => setIsFileManagerOpen(false)} />
-      <TerminalModal isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
-      <ProfileCreator isOpen={isProfileCreatorOpen} onClose={() => setIsProfileCreatorOpen(false)} />
-      
-      {/* Zenith Dock - Persistent Access */}
-      <ZenithDock 
-        items={[...items, ...STORE_APPS]} 
-        onLaunch={handleLaunch} 
-      />
+        <main className="mt-5 grid min-h-0 flex-1 grid-cols-[1fr_330px] gap-5">
+          <section className="min-h-0 rounded-[10px] border border-white/10 bg-black/25 p-5">
+            <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} />
+            {currentItems.length === 0 ? (
+              <EmptyState activeTab={activeTab} onRefresh={loadApps} />
+            ) : (
+              <div className="mt-4 grid max-h-[calc(100vh-250px)] grid-cols-4 gap-4 overflow-hidden pr-1">
+                {currentItems.slice(0, 24).map((item, index) => (
+                  <LauncherTile
+                    key={item.id}
+                    item={item}
+                    isFocused={focusArea === 'grid' && focusedIndex === index}
+                    isFavorite={!('action' in item) && favorites.includes(item.id)}
+                    onFocus={() => setFocusedIndex(index)}
+                    onRun={() => runItem(item)}
+                    onMenu={() => {
+                      if (!('action' in item)) setContextItem(item);
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
 
-      <VirtualKeyboard 
-          isVisible={isKeyboardOpen} 
-          onCancel={() => { setIsKeyboardOpen(false); playSound('back'); }}
-          onEnter={handleKeyboardSubmit}
-          initialValue={aiPrompt}
-          placeholder="Escribe para buscar..."
-      />
+          <Aside
+            focusedItem={focusedItem}
+            activeTab={activeTab}
+            onRun={() => runItem(focusedItem)}
+            onRefresh={loadApps}
+          />
+        </main>
+      </div>
 
-      <Screensaver isActive={isScreensaverActive} onWake={() => setIsScreensaverActive(false)} />
-      
-      <SettingsOverlay 
-        isOpen={isSettingsOpen} 
-        onClose={() => { setIsSettingsOpen(false); playSound('back'); }} 
-        activeItem={activeSettingsItem}
-        currentSsid={currentWifi}
-        onWifiConnect={(ssid) => {
-            setCurrentWifi(ssid);
-            showToast(`Conectado a ${ssid}`);
-        }}
-        currentTheme={currentTheme}
-        onThemeChange={setCurrentTheme} 
-      />
-      
-      <WeatherModal isOpen={isWeatherOpen} onClose={() => { setIsWeatherOpen(false); playSound('back'); }} />
-      <VolumeHUD />
-      <Toast message={toastMessage} onClear={() => setToastMessage(null)} />
-      
-      {contextMenu && (
-        <ContextMenu 
-            position={contextMenu} 
-            item={contextMenu.item} 
-            onClose={() => setContextMenu(null)}
-            onAction={handleContextAction}
+      {contextItem && (
+        <ContextPanel
+          item={contextItem}
+          isFavorite={favorites.includes(contextItem.id)}
+          onClose={() => setContextItem(null)}
+          onLaunch={() => {
+            setContextItem(null);
+            launchApp(contextItem);
+          }}
+          onFavorite={() => {
+            toggleFavorite(contextItem);
+            setContextItem(null);
+          }}
+          onInfo={() => {
+            if (contextItem.packageName) nativeBridge.openAppInfo(contextItem.packageName);
+            setContextItem(null);
+          }}
+          onUninstall={() => {
+            if (contextItem.packageName) nativeBridge.uninstallApp(contextItem.packageName);
+            setContextItem(null);
+          }}
         />
       )}
 
-      {/* Dynamic Cursor Spotlight */}
-      <div 
-        className="fixed pointer-events-none z-0 transition-opacity duration-1000 mix-blend-screen"
-        style={{
-            background: `radial-gradient(600px circle at ${mousePos.x}px ${mousePos.y}px, ${activeMoodConfig.glowColor}10, transparent 40%)`
-        }}
-      />
-
-      {/* Cinematic Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none">
-        <ParticleBackground mood={currentMood} />
-        {currentTheme !== 'DAY' && (
-             <div 
-                className="absolute inset-0 bg-cover bg-center transition-all duration-[1500ms] ease-in-out transform scale-110 blur-[4px] opacity-40"
-                style={{ backgroundImage: `url(${bgImage})` }} 
-             />
-        )}
-        <div 
-            className="absolute inset-0 transition-colors duration-[2000ms]"
-            style={{ backgroundColor: currentTheme === 'DAY' ? 'transparent' : `${activeMoodConfig.glowColor}15` }} 
-        />
-        {currentTheme !== 'DAY' && (
-            <>
-                <div className="absolute inset-0 bg-gradient-to-r from-[var(--bg-main)] via-[var(--bg-main)]/90 to-transparent" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/50 to-transparent" />
-            </>
-        )}
-      </div>
-
-      <div className={`relative z-10 w-full h-full flex transition-all duration-700 ${isBooting || launchingItem || isSettingsOpen || isWeatherOpen || isKeyboardOpen || isMoodSelectorOpen || isNeuralCoreOpen || isSpeedFluxOpen || isInputHubOpen || isOmniSearchOpen || hyperLaunch.isOpen || isZenithDeckOpen || cineVerse.isOpen || isFileManagerOpen || isTerminalOpen || isProfileCreatorOpen ? 'scale-95 opacity-50 blur-sm' : 'scale-100 opacity-100'}`}>
-        
-        <div 
-            onMouseEnter={() => {
-                // Prevent focus stealing if an overlay is open
-                if(!isSettingsOpen && !isWeatherOpen && !isKeyboardOpen && !isMoodSelectorOpen && !isNeuralCoreOpen && !isSpeedFluxOpen && !isInputHubOpen && !isOmniSearchOpen && !hyperLaunch.isOpen && !isZenithDeckOpen && !cineVerse.isOpen && !isFileManagerOpen && !isTerminalOpen && !isProfileCreatorOpen) {
-                    setFocusSection('SIDEBAR');
-                    playSound('hover');
-                }
-            }}
-            className="h-full z-40"
-        >
-            <Sidebar 
-            categories={CATEGORIES} 
-            selectedCategoryId={activeCategory} 
-            isFocused={focusSection === 'SIDEBAR'} 
-            onSelectCategory={handleCategorySelect}
-            />
-        </div>
-
-        <main 
-            className="flex-1 flex flex-col h-full overflow-hidden relative pb-12"
-            onMouseEnter={() => {
-                if(!isSettingsOpen && !isWeatherOpen && !isKeyboardOpen && !isMoodSelectorOpen && !isNeuralCoreOpen && !isSpeedFluxOpen && !isInputHubOpen && !isOmniSearchOpen && !hyperLaunch.isOpen && !isZenithDeckOpen && !cineVerse.isOpen && !isFileManagerOpen && !isTerminalOpen && !isProfileCreatorOpen) {
-                    setFocusSection('GRID');
-                    playSound('hover');
-                }
-            }}
-        >
-          
-          {/* Header Row */}
-          <header className="flex justify-between items-start px-16 py-8 z-20">
-            {/* Search Pill */}
-            {(activeCategory === 'movies' || activeCategory === 'home') ? (
-               <div className={`
-                    group flex items-center gap-4 bg-[var(--bg-surface)] hover:bg-white/20 border border-[var(--border)]
-                    backdrop-blur-xl px-5 py-3 rounded-2xl transition-all duration-300 w-full max-w-lg cursor-text
-                    shadow-[0_4px_30px_rgba(0,0,0,0.2)]
-                    ${focusSection === 'SIDEBAR' ? 'opacity-60' : 'opacity-100'}
-               `} onClick={openSearchKeyboard}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); toggleMic(); }}
-                    className={`p-2 rounded-xl transition-all duration-300 ${isListening ? 'bg-red-500/20 text-red-500' : 'bg-transparent text-[var(--text-muted)] group-hover:text-[var(--text-main)]'}`}
-                  >
-                    {isListening ? <Mic size={18} className="animate-pulse" /> : <Mic size={18} />}
-                  </button>
-                  <div className="flex-1 flex items-center gap-3">
-                     {isListening ? (
-                         <div className="flex items-center gap-3 w-full">
-                             <VoiceVisualizer isListening={isListening} />
-                             <span className="text-xs font-bold text-red-400 animate-pulse font-tech tracking-wider uppercase">Escuchando...</span>
-                         </div>
-                     ) : (
-                         <>
-                            {isLoadingAI ? <Loader2 size={16} className="animate-spin text-indigo-400"/> : <Sparkles size={16} className={`text-[var(--accent)]`} />}
-                            <span className="text-sm text-[var(--text-muted)] font-medium tracking-wide">
-                                {aiPrompt || "Busca en Zynex OS..."}
-                            </span>
-                         </>
-                     )}
-                  </div>
-               </div>
-            ) : <div />}
-
-            <div className="flex items-start gap-8">
-                {/* Mood Button */}
-                <button 
-                    onClick={() => { setIsMoodSelectorOpen(true); playSound('select'); }}
-                    className={`
-                        flex items-center gap-2 px-4 py-2 bg-[var(--bg-surface)] hover:bg-white/10 rounded-full border border-[var(--border)] transition-colors group
-                    `}
-                >
-                    <Aperture size={18} className={`text-[var(--accent)] animate-spin-slow`} style={{ animationDuration: '10s' }}/>
-                    <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)] group-hover:text-[var(--text-main)]">
-                        {activeMoodConfig.label}
-                    </span>
-                </button>
-
-                <Clock onClick={() => { setIsWeatherOpen(true); playSound('select'); }} />
-                
-                {/* Deck Button replaces Notifications */}
-                <button 
-                    onClick={() => { setIsZenithDeckOpen(true); playSound('select'); }}
-                    className="relative p-2.5 bg-[var(--bg-surface)] hover:bg-white/10 rounded-full border border-[var(--border)] transition-colors group"
-                >
-                    <Layers size={20} className="text-[var(--text-muted)] group-hover:text-[var(--text-main)]" />
-                    <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-[var(--bg-main)] animate-pulse" />
-                </button>
-
-                {/* User Profile */}
-                <div className="relative z-50">
-                    <button 
-                        onClick={() => { setIsProfileMenuOpen(!isProfileMenuOpen); playSound('select'); }}
-                        className={`flex items-center gap-3 bg-[var(--bg-surface)] hover:bg-white/10 border border-[var(--border)] rounded-full p-1.5 pr-4 transition-all duration-300 ${isProfileMenuOpen ? 'bg-white/10' : ''}`}
-                    >
-                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${currentUser.avatar} flex items-center justify-center text-xs font-bold shadow-lg text-white`}>
-                            {currentUser.name[0]}
-                        </div>
-                        <span className="text-sm font-medium text-[var(--text-main)]">{currentUser.name}</span>
-                        <ChevronDown size={14} className={`text-[var(--text-muted)] transition-transform ${isProfileMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {/* Dropdown Menu */}
-                    {isProfileMenuOpen && (
-                        <div className="absolute top-full right-0 mt-3 w-56 bg-[var(--bg-main)] backdrop-blur-2xl border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden animate-fadeIn origin-top-right z-[100]">
-                            <div className="p-2 space-y-1">
-                                {PROFILES.map(profile => (
-                                    <button
-                                        key={profile.id}
-                                        onClick={() => {
-                                            setCurrentUser(profile);
-                                            setIsProfileMenuOpen(false);
-                                            showToast(`Bienvenido de nuevo, ${profile.name}`);
-                                            playSound('success');
-                                        }}
-                                        className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${currentUser.id === profile.id ? 'bg-[var(--bg-surface)]' : 'hover:bg-[var(--bg-surface)]'}`}
-                                    >
-                                        <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${profile.avatar} flex items-center justify-center text-[10px] font-bold text-white`}>
-                                            {profile.name[0]}
-                                        </div>
-                                        <span className={`text-sm ${currentUser.id === profile.id ? 'text-[var(--text-main)] font-bold' : 'text-[var(--text-muted)]'}`}>
-                                            {profile.name}
-                                        </span>
-                                    </button>
-                                ))}
-                                <div className="h-px bg-[var(--border)] my-2" />
-                                <button 
-                                    onClick={() => { setIsProfileCreatorOpen(true); setIsProfileMenuOpen(false); playSound('select'); }}
-                                    className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition-colors"
-                                >
-                                    <div className="w-6 h-6 rounded-full border border-dashed border-[var(--text-muted)] flex items-center justify-center">
-                                        <Plus size={12} />
-                                    </div>
-                                    <span className="text-xs font-medium">Añadir Perfil</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-          </header>
-
-          {/* Hero Details */}
-          <div className="px-16 flex-shrink-0 min-h-[300px] flex flex-col justify-end pb-10 transition-all duration-500 z-10">
-             {focusedItem && activeCategory !== 'store' && activeCategory !== 'tools' ? (
-               <div className="animate-slideUp space-y-6">
-                  {/* Meta Tags */}
-                  <div className="flex items-center gap-3 opacity-0 animate-[fadeIn_0.5s_ease-out_0.2s_forwards]">
-                    {focusedItem.type === ItemType.MOVIE && <span className="bg-[var(--text-main)] text-[var(--bg-main)] text-[10px] font-black px-2 py-0.5 rounded-sm uppercase tracking-wider font-tech shadow-[0_0_15px_rgba(255,255,255,0.4)]">Top 10</span>}
-                    
-                    <span className="text-[var(--text-muted)] text-xs font-semibold tracking-widest uppercase font-tech flex items-center gap-2 backdrop-blur-md bg-[var(--bg-surface)] px-3 py-1 rounded-full border border-[var(--border)]">
-                        {focusedItem.type}
-                        <span
-                            className="w-1 h-1 bg-[var(--accent)] rounded-full"
-                            style={{ boxShadow: `0 0 5px ${activeMoodConfig.glowColor}` }}
-                        />
-                        {activeCategory === 'home' ? 'Destacado' : 'Explorar'}
-                    </span>
-                  </div>
-                  
-                  {/* Title & Desc */}
-                  <div>
-                      <h1 className="text-8xl font-black mb-3 drop-shadow-2xl text-[var(--text-main)] leading-none font-tech tracking-tight max-w-4xl py-2">
-                        {focusedItem.title}
-                      </h1>
-                      <p className="max-w-3xl text-xl text-[var(--text-muted)] font-light leading-relaxed drop-shadow-lg line-clamp-2 text-shadow-sm">
-                        {focusedItem.description || "Sumérgete en una experiencia de entretenimiento de próxima generación diseñada para ti."}
-                      </p>
-                  </div>
-
-                  {/* Hero Actions */}
-                  {focusedItem.type === ItemType.MOVIE && (
-                      <div className="flex items-center gap-4 pt-2">
-                          <button 
-                            onClick={() => handleLaunch(focusedItem)}
-                            className={`
-                                flex items-center gap-3 bg-[var(--text-main)] text-[var(--bg-main)] px-8 py-3 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg group 
-                                hover:bg-[var(--accent)] hover:text-white
-                            `}
-                          >
-                              <Play size={20} className="fill-current" />
-                              <span className="font-tech tracking-wider text-sm">REPRODUCIR</span>
-                          </button>
-                          <button onClick={() => showToast('Detalles no disponibles en demo')} className="flex items-center gap-3 bg-[var(--bg-surface)] hover:bg-white/20 text-[var(--text-main)] border border-[var(--border)] px-8 py-3 rounded-xl font-bold hover:scale-105 active:scale-95 transition-all backdrop-blur-md">
-                              <Info size={20} />
-                              <span className="font-tech tracking-wider text-sm">DETALLES</span>
-                          </button>
-                      </div>
-                  )}
-               </div>
-             ) : activeCategory === 'store' ? (
-                 <div className="flex flex-col justify-end h-full animate-slideUp">
-                    <h1 className="text-8xl font-black text-[var(--text-main)] mb-2 font-brand tracking-tighter">ZYNEX STORE</h1>
-                    <p className="text-xl text-[var(--text-muted)]">Descarga las mejores aplicaciones para tu TV</p>
-                 </div>
-             ) : activeCategory === 'tools' ? (
-                <div className="flex flex-col justify-end h-full animate-slideUp">
-                   <h1 className="text-8xl font-black text-[var(--text-main)] mb-2 font-tech tracking-tighter">HERRAMIENTAS</h1>
-                   <p className="text-xl text-[var(--text-muted)]">Utilidades del sistema y conectividad avanzada.</p>
-                </div>
-            ) : (
-                 <div className="flex flex-col justify-end h-full">
-                    <h1 className="text-8xl font-bold text-[var(--text-muted)]/10 tracking-tighter select-none font-brand">ZYNEX OS</h1>
-                 </div>
-             )}
-          </div>
-
-          {/* Grid Engine */}
-          <div className="flex-1 relative overflow-visible z-10 perspective-1000">
-             <div 
-                className="transition-transform duration-700 cubic-bezier(0.16, 1, 0.3, 1)" 
-                style={{ transform: activeCategory === 'store' ? 'none' : `translateY(${getScrollOffset()}px)` }}
-             >
-                {activeCategory === 'store' ? (
-                    <ZenithStore 
-                        isFocused={focusSection === 'GRID'} 
-                        focusedIndex={focusedIndex} 
-                        onInstall={handleInstallApp}
-                        installedApps={items}
-                        onLaunch={handleLaunch}
-                        onHover={(idx) => {
-                            if (!isSettingsOpen && !isKeyboardOpen && !isMoodSelectorOpen && !isNeuralCoreOpen && !isSpeedFluxOpen && !isInputHubOpen && !isOmniSearchOpen && !hyperLaunch.isOpen && !isZenithDeckOpen && !cineVerse.isOpen && !isFileManagerOpen && !isTerminalOpen && !isProfileCreatorOpen) {
-                                if(focusedIndex !== idx) playSound('hover');
-                                setFocusSection('GRID');
-                                setFocusedIndex(idx);
-                            }
-                        }}
-                    />
-                ) : currentGridItems.length === 0 ? (
-                  <div className="mt-10 mx-16 border border-dashed border-[var(--border)] rounded-3xl p-16 flex flex-col items-center justify-center text-center bg-[var(--bg-surface)] backdrop-blur-sm">
-                      <div className="bg-[var(--bg-surface)] p-6 rounded-full mb-6 ring-1 ring-[var(--border)]">
-                        <Search className="text-[var(--text-muted)]" size={32} />
-                      </div>
-                      <h3 className="text-3xl font-bold text-[var(--text-main)] mb-2 font-tech">Sin Señal</h3>
-                      <p className="text-[var(--text-muted)] max-w-xs mx-auto">No hay contenido en este sector.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-4 gap-10 px-16 pb-40">
-                    {currentGridItems.map((item, index) => (
-                      <div key={item.id} id={`card-${item.id}`} onContextMenu={(e) => handleContextMenu(e, item)}>
-                         {item.type === ItemType.WIDGET ? (
-                             <div className="col-span-2">
-                                <SystemOptimizer 
-                                    isFocused={(focusSection === 'GRID' && focusedIndex === index)}
-                                    onClick={() => { showToast('Optimizando...'); playSound('select'); }}
-                                />
-                             </div>
-                         ) : item.type === ItemType.SMART_HOME ? (
-                            <div className="col-span-2">
-                                <SmartHomeWidget
-                                    isFocused={(focusSection === 'GRID' && focusedIndex === index)}
-                                    onToggleLights={setAreLightsOn}
-                                />
-                             </div>
-                         ) : (
-                            <GridItem 
-                                item={item} 
-                                index={index}
-                                isFocused={(focusSection === 'GRID' && focusedIndex === index)}
-                                onHover={(idx) => {
-                                    if(!isSettingsOpen && !isSettingsOpen && !contextMenu && !isWeatherOpen && !isKeyboardOpen && !isMoodSelectorOpen && !isNeuralCoreOpen && !isSpeedFluxOpen && !isInputHubOpen && !isOmniSearchOpen && !hyperLaunch.isOpen && !isZenithDeckOpen && !cineVerse.isOpen && !isFileManagerOpen && !isTerminalOpen && !isProfileCreatorOpen) {
-                                        if(focusedIndex !== idx) playSound('hover');
-                                        setFocusSection('GRID');
-                                        setFocusedIndex(idx);
-                                    }
-                                }}
-                                onClick={handleLaunch}
-                            />
-                         )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-             </div>
-             {/* Bottom Fade for Scroll */}
-             <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)]/80 to-transparent pointer-events-none z-20" />
-          </div>
-          
-          <MediaPlayer 
-             pipMode={isPipActive} 
-             onExpand={() => { setIsPipActive(false); showToast('Modo normal restaurado'); }}
-             onClose={() => { setIsPipActive(false); showToast('Reproducción detenida'); }}
-          />
-
-          <SystemStatusBar onOpenNeuralCore={() => { setIsNeuralCoreOpen(true); playSound('select'); }} />
-          
-        </main>
-      </div>
-      
+      {toast && <Toast toast={toast} />}
     </div>
   );
+};
+
+const Header: React.FC<{ clock: Date; appCount: number; isNative: boolean }> = ({ clock, appCount, isNative }) => (
+  <header className="flex h-20 shrink-0 items-center justify-between">
+    <div>
+      <div className="font-brand text-4xl tracking-[0.12em] text-[#f7d66d]">ZYNEX</div>
+      <div className="mt-1 text-sm text-[#b9b39b]">Launcher TV Box · {appCount} apps · {isNative ? 'Android conectado' : 'Preview web'}</div>
+    </div>
+    <div className="flex items-center gap-5 text-right">
+      <div>
+        <div className="font-tech text-4xl leading-none">{clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+        <div className="mt-1 text-sm capitalize text-[#b9b39b]">{clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })}</div>
+      </div>
+      <div className="flex h-12 w-12 items-center justify-center rounded-[8px] bg-[#f7d66d] text-[#11130f]">
+        <Power size={22} />
+      </div>
+    </div>
+  </header>
+);
+
+const TabButton: React.FC<{
+  tab: { id: TabId; label: string; icon: React.ElementType };
+  isActive: boolean;
+  isFocused: boolean;
+  onClick: () => void;
+}> = ({ tab, isActive, isFocused, onClick }) => {
+  const Icon = tab.icon;
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-full flex-1 items-center justify-center gap-3 rounded-[8px] px-4 text-lg font-bold transition-colors ${
+        isActive ? 'bg-[#f7d66d] text-[#11130f]' : 'bg-white/5 text-[#d9d2b4] hover:bg-white/10'
+      } ${isFocused ? 'outline outline-2 outline-offset-2 outline-[#f7d66d]' : ''}`}
+    >
+      <Icon size={22} />
+      <span>{tab.label}</span>
+    </button>
+  );
+};
+
+const SectionTitle: React.FC<{ activeTab: TabId; isLoadingApps: boolean }> = ({ activeTab, isLoadingApps }) => {
+  const titleByTab: Record<TabId, string> = {
+    home: 'Favoritos e inicio',
+    apps: 'Aplicaciones instaladas',
+    store: 'Instalar apps populares',
+    tools: 'Herramientas',
+    settings: 'Ajustes del sistema',
+  };
+
+  return (
+    <div className="flex items-center justify-between">
+      <h1 className="font-tech text-3xl">{titleByTab[activeTab]}</h1>
+      {isLoadingApps && <span className="rounded-[6px] bg-white/10 px-3 py-1 text-sm text-[#f7d66d]">Leyendo apps...</span>}
+    </div>
+  );
+};
+
+const LauncherTile: React.FC<{
+  item: LauncherItem | ActionItem;
+  isFocused: boolean;
+  isFavorite: boolean;
+  onFocus: () => void;
+  onRun: () => void;
+  onMenu: () => void;
+}> = ({ item, isFocused, isFavorite, onFocus, onRun, onMenu }) => {
+  const isAction = 'action' in item;
+  const Icon = isAction ? item.icon : AppWindow;
+
+  return (
+    <button
+      onMouseEnter={onFocus}
+      onClick={onRun}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onMenu();
+      }}
+      className={`group relative h-32 rounded-[8px] border p-4 text-left transition-transform ${
+        isFocused
+          ? 'scale-[1.035] border-[#f7d66d] bg-[#f7d66d] text-[#11130f] shadow-[0_18px_45px_rgba(0,0,0,0.35)]'
+          : 'border-white/10 bg-[#1a1e18] text-[#f4f0df]'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {'imageUrl' in item && item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            className="h-14 w-14 shrink-0 rounded-[8px] bg-black/30 object-contain"
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : (
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[8px] ${isFocused ? 'bg-black/10' : 'bg-white/10'}`}>
+            <Icon size={28} />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-xl font-bold">{item.title}</div>
+          <div className={`mt-1 line-clamp-2 text-sm ${isFocused ? 'text-[#38301a]' : 'text-[#b9b39b]'}`}>{item.description}</div>
+        </div>
+      </div>
+      {isFavorite && <div className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-emerald-400" />}
+    </button>
+  );
+};
+
+const Aside: React.FC<{
+  focusedItem: LauncherItem | ActionItem | null;
+  activeTab: TabId;
+  onRun: () => void;
+  onRefresh: () => void;
+}> = ({ focusedItem, activeTab, onRun, onRefresh }) => (
+  <aside className="rounded-[10px] border border-white/10 bg-black/25 p-5">
+    <div className="flex h-full flex-col">
+      <div className="rounded-[8px] bg-[#f7d66d] p-5 text-[#11130f]">
+        <div className="text-sm font-bold uppercase tracking-[0.16em]">Seleccionado</div>
+        <div className="mt-3 font-tech text-3xl leading-none">{focusedItem?.title ?? 'Sin elemento'}</div>
+        <div className="mt-3 min-h-14 text-base text-[#3f371e]">{focusedItem?.description ?? 'Elegí una opcion con el control remoto.'}</div>
+      </div>
+
+      <div className="mt-5 space-y-3 text-sm text-[#b9b39b]">
+        <InfoLine icon={Play} text="OK abre la app o ejecuta accion" />
+        <InfoLine icon={Info} text="Menu abre info, favorito o desinstalar" />
+        <InfoLine icon={RefreshCw} text="Actualizar vuelve a leer apps nativas" />
+      </div>
+
+      <div className="mt-auto grid gap-3">
+        <button onClick={onRun} className="h-12 rounded-[8px] bg-[#f7d66d] font-bold text-[#11130f]">
+          {activeTab === 'store' ? 'Buscar / instalar' : 'Abrir'}
+        </button>
+        <button onClick={onRefresh} className="h-12 rounded-[8px] border border-white/10 bg-white/5 font-bold text-[#f4f0df]">
+          Actualizar apps
+        </button>
+      </div>
+    </div>
+  </aside>
+);
+
+const InfoLine: React.FC<{ icon: React.ElementType; text: string }> = ({ icon: Icon, text }) => (
+  <div className="flex items-center gap-3 rounded-[8px] bg-white/5 p-3">
+    <Icon size={18} className="text-[#f7d66d]" />
+    <span>{text}</span>
+  </div>
+);
+
+const EmptyState: React.FC<{ activeTab: TabId; onRefresh: () => void }> = ({ activeTab, onRefresh }) => (
+  <div className="mt-4 flex h-[420px] flex-col items-center justify-center rounded-[8px] border border-dashed border-white/15 bg-white/5 text-center">
+    <AppWindow size={42} className="text-[#f7d66d]" />
+    <div className="mt-4 font-tech text-3xl">No hay elementos</div>
+    <div className="mt-2 max-w-md text-[#b9b39b]">
+      {activeTab === 'apps' ? 'No pude leer aplicaciones instaladas todavia.' : 'Esta seccion no tiene contenido.'}
+    </div>
+    <button onClick={onRefresh} className="mt-6 rounded-[8px] bg-[#f7d66d] px-6 py-3 font-bold text-[#11130f]">
+      Reintentar
+    </button>
+  </div>
+);
+
+const ContextPanel: React.FC<{
+  item: LauncherItem;
+  isFavorite: boolean;
+  onClose: () => void;
+  onLaunch: () => void;
+  onFavorite: () => void;
+  onInfo: () => void;
+  onUninstall: () => void;
+}> = ({ item, isFavorite, onClose, onLaunch, onFavorite, onInfo, onUninstall }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+    <div className="w-[520px] rounded-[10px] border border-white/10 bg-[#151812] p-5 text-[#f4f0df] shadow-2xl">
+      <div className="font-tech text-3xl">{item.title}</div>
+      <div className="mt-1 text-sm text-[#b9b39b]">{item.packageName ?? 'Sin paquete'}</div>
+      <div className="mt-5 grid gap-3">
+        <ActionButton icon={Play} label="Abrir" onClick={onLaunch} />
+        <ActionButton icon={Home} label={isFavorite ? 'Quitar de inicio' : 'Anadir a inicio'} onClick={onFavorite} />
+        <ActionButton icon={Info} label="Informacion de app" onClick={onInfo} />
+        <ActionButton icon={Trash2} label="Desinstalar" onClick={onUninstall} danger />
+        <button onClick={onClose} className="mt-2 h-12 rounded-[8px] border border-white/10 bg-white/5 font-bold">
+          Volver
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
+const ActionButton: React.FC<{ icon: React.ElementType; label: string; onClick: () => void; danger?: boolean }> = ({ icon: Icon, label, onClick, danger }) => (
+  <button
+    onClick={onClick}
+    className={`flex h-12 items-center gap-3 rounded-[8px] px-4 font-bold ${
+      danger ? 'bg-red-500/15 text-red-200' : 'bg-white/10 text-[#f4f0df]'
+    }`}
+  >
+    <Icon size={20} />
+    <span>{label}</span>
+  </button>
+);
+
+const Toast: React.FC<{ toast: ToastState }> = ({ toast }) => {
+  const color = toast.tone === 'error' ? 'border-red-400 text-red-100' : toast.tone === 'warn' ? 'border-amber-300 text-amber-100' : 'border-emerald-300 text-emerald-100';
+  return (
+    <div className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[8px] border bg-black/80 px-5 py-3 text-lg font-bold shadow-2xl ${color}`}>
+      {toast.text}
+    </div>
+  );
+};
+
+function readFavorites(): string[] {
+  try {
+    const raw = window.localStorage.getItem('zynex:favorites');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
 }
+
+function getColumnCount() {
+  return window.innerWidth < 1100 ? 3 : 4;
+}
+
+export default App;
