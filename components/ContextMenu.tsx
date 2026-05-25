@@ -6,9 +6,10 @@ interface ContextMenuProps {
   position: { x: number, y: number } | null;
   item: LauncherItem | null;
   onClose: () => void;
+  onAction: (action: 'open' | 'favorite' | 'share' | 'info' | 'uninstall', item: LauncherItem) => void;
 }
 
-export const ContextMenu: React.FC<ContextMenuProps> = ({ position, item, onClose }) => {
+export const ContextMenu: React.FC<ContextMenuProps> = ({ position, item, onClose, onAction }) => {
   if (!position || !item) return null;
 
   return (
@@ -23,12 +24,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ position, item, onClos
             <p className="text-[10px] text-gray-400 uppercase tracking-wider">{item.type}</p>
         </div>
         <div className="p-1">
-            <MenuItem icon={PlayCircle} label="Abrir" onClick={onClose} primary />
-            <MenuItem icon={Heart} label="Añadir a Favoritos" onClick={onClose} />
-            <MenuItem icon={Share2} label="Compartir" onClick={onClose} />
-            <MenuItem icon={Info} label="Ver Detalles" onClick={onClose} />
+            <MenuItem icon={PlayCircle} label="Abrir" onClick={() => onAction('open', item)} primary />
+            <MenuItem icon={Heart} label="Añadir a Favoritos" onClick={() => onAction('favorite', item)} />
+            <MenuItem icon={Share2} label="Compartir" onClick={() => onAction('share', item)} />
+            <MenuItem icon={Info} label="Ver Detalles" onClick={() => onAction('info', item)} />
             <div className="h-px bg-white/10 my-1" />
-            <MenuItem icon={Trash2} label="Desinstalar" onClick={onClose} danger />
+            <MenuItem icon={Trash2} label="Desinstalar" onClick={() => onAction('uninstall', item)} danger />
         </div>
       </div>
     </>

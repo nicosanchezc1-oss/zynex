@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.example.zenithlauncher">
+    package="com.zynex.launcher">
 
     <!-- Permiso para acceder a Internet (opcional si la webapp carga imágenes externas) -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,18 +18,33 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <package android:name="com.android.vending" />
+    </queries>
+
     <application
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:hardwareAccelerated="true"
+        android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
-        android:banner="@mipmap/ic_launcher" 
+        android:banner="@drawable/banner"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.NoActionBar"> 
+        android:usesCleartextTraffic="false"
+        android:theme="@style/AppTheme"> 
         
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="landscape"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:launchMode="singleTask">
             
             <!-- Intent filters para ser el LAUNCHER principal -->

@@ -116,6 +116,7 @@ export const INITIAL_APPS: LauncherItem[] = [
     type: ItemType.APP,
     imageUrl: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?q=80&w=800&auto=format&fit=crop',
     color: 'from-red-900 to-red-600',
+    packageName: 'com.netflix.ninja',
     isInstalled: true
   },
   {
@@ -133,6 +134,7 @@ export const INITIAL_APPS: LauncherItem[] = [
     type: ItemType.APP,
     imageUrl: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?q=80&w=800&auto=format&fit=crop',
     color: 'from-red-700 to-red-500',
+    packageName: 'com.google.android.youtube.tv',
     isInstalled: true
   },
   {
@@ -150,6 +152,7 @@ export const INITIAL_APPS: LauncherItem[] = [
     type: ItemType.APP,
     imageUrl: 'https://images.unsplash.com/photo-1614680376593-902f74cf0d41?q=80&w=800&auto=format&fit=crop',
     color: 'from-green-700 to-green-500',
+    packageName: 'com.spotify.tv.android',
     isInstalled: true
   },
 ];
@@ -168,6 +171,7 @@ export const STORE_APPS: LauncherItem[] = [
     type: ItemType.STORE,
     imageUrl: 'https://images.unsplash.com/photo-1635863138275-d9b33299680b?q=80&w=800&auto=format&fit=crop',
     description: 'Entretenimiento de calidad',
+    packageName: 'com.hbo.hbonow',
     isInstalled: false
   },
   {
@@ -176,6 +180,7 @@ export const STORE_APPS: LauncherItem[] = [
     type: ItemType.STORE,
     imageUrl: 'https://images.unsplash.com/photo-1606229338681-189f7831d4d3?q=80&w=800&auto=format&fit=crop',
     description: 'Las mejores historias',
+    packageName: 'com.disney.disneyplus',
     isInstalled: false
   },
   {
@@ -184,6 +189,7 @@ export const STORE_APPS: LauncherItem[] = [
     type: ItemType.STORE,
     imageUrl: 'https://images.unsplash.com/photo-1605901309584-818e25960b8f?q=80&w=800&auto=format&fit=crop',
     description: 'Cloud Gaming',
+    packageName: 'com.nvidia.geforcenow',
     isInstalled: false
   },
   {
@@ -192,6 +198,7 @@ export const STORE_APPS: LauncherItem[] = [
     type: ItemType.STORE,
     imageUrl: 'https://images.unsplash.com/photo-1543536448-d209d2d13a1c?q=80&w=800&auto=format&fit=crop',
     description: 'Media Center',
+    packageName: 'org.xbmc.kodi',
     isInstalled: false
   }
 ];

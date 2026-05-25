@@ -35,11 +35,12 @@ export const MoodSelector: React.FC<MoodSelectorProps> = ({ currentMood, onSelec
                         className={`
                             relative w-40 h-64 rounded-3xl overflow-hidden group transition-all duration-500 ease-out border
                             ${isActive 
-                                ? `scale-110 border-[${mood.glowColor}] shadow-[0_0_50px_${mood.glowColor}]` 
+                                ? 'scale-110' 
                                 : 'scale-100 border-white/10 hover:border-white/30 hover:scale-105 opacity-60 hover:opacity-100'}
                         `}
                         style={{
-                            borderColor: isActive ? mood.glowColor : undefined
+                            borderColor: isActive ? mood.glowColor : undefined,
+                            boxShadow: isActive ? `0 0 50px ${mood.glowColor}` : undefined
                         }}
                     >
                         {/* Background Gradient */}

@@ -6,6 +6,12 @@ declare global {
     Android?: {
       getInstalledApps: () => string; // Returns JSON string of apps
       launchApp: (packageName: string) => boolean; // Returns success status
+      openSystemSettings: (panel: string) => boolean;
+      openAppStore: (packageName: string) => boolean;
+      openAppInfo: (packageName: string) => boolean;
+      uninstallApp: (packageName: string) => boolean;
+      openFileManager: () => boolean;
+      shareText: (title: string, text: string) => boolean;
     };
   }
 }
@@ -58,5 +64,57 @@ export const nativeBridge = {
       return true; // Simulate success in dev
     }
     return window.Android.launchApp(packageName);
+  },
+
+  openSystemSettings: (panel = 'settings'): boolean => {
+    if (!window.Android) {
+      console.log(`[DEV MODE] Would open settings panel: ${panel}`);
+      return true;
+    }
+    return window.Android.openSystemSettings(panel);
+  },
+
+  openAppStore: (packageName: string): boolean => {
+    if (!window.Android) {
+      window.open(`https://play.google.com/store/apps/details?id=${packageName}`, '_blank');
+      return true;
+    }
+    return window.Android.openAppStore(packageName);
+  },
+
+  openAppInfo: (packageName: string): boolean => {
+    if (!window.Android) {
+      console.log(`[DEV MODE] Would open app info: ${packageName}`);
+      return true;
+    }
+    return window.Android.openAppInfo(packageName);
+  },
+
+  uninstallApp: (packageName: string): boolean => {
+    if (!window.Android) {
+      console.log(`[DEV MODE] Would uninstall: ${packageName}`);
+      return true;
+    }
+    return window.Android.uninstallApp(packageName);
+  },
+
+  openFileManager: (): boolean => {
+    if (!window.Android) {
+      console.log('[DEV MODE] Would open Android file manager');
+      return true;
+    }
+    return window.Android.openFileManager();
+  },
+
+  shareText: (title: string, text: string): boolean => {
+    if (!window.Android) {
+      if (navigator.share) {
+        navigator.share({ title, text }).catch(() => undefined);
+        return true;
+      }
+      console.log(`[DEV MODE] Would share: ${title} ${text}`);
+      return true;
+    }
+    return window.Android.shareText(title, text);
   }
 };

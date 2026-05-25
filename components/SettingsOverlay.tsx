@@ -5,6 +5,7 @@ import { LauncherItem, ThemeType } from '../types';
 import { THEMES } from '../constants';
 import { WifiManager } from './WifiManager';
 import { playSound } from '../utils/sound';
+import { nativeBridge } from '../services/nativeBridge';
 
 interface SettingsOverlayProps {
   isOpen: boolean;
@@ -37,6 +38,15 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
   const handleBack = () => {
     if (view !== 'main') setView('main');
     else onClose();
+  };
+
+  const openNativePanel = (panel: string, fallback: typeof view) => {
+    if (nativeBridge.isNative() && nativeBridge.openSystemSettings(panel)) {
+      playSound('select');
+      return;
+    }
+    setView(fallback);
+    playSound('select');
   };
 
   React.useEffect(() => {
@@ -117,18 +127,18 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                     <div className="space-y-3">
                     <ToggleItem 
                         icon={Wifi} 
-                        label="Gestor Wi-Fi" 
-                        sublabel={currentSsid ? `Conectado a ${currentSsid}` : "Sin conexión"} 
-                        isActive={!!currentSsid} 
-                        onClick={() => { setView('wifi'); playSound('select'); }} 
-                        isLink
+                            label="Gestor Wi-Fi" 
+                            sublabel={currentSsid ? `Conectado a ${currentSsid}` : "Sin conexión"} 
+                            isActive={!!currentSsid} 
+                            onClick={() => openNativePanel('wifi', 'wifi')} 
+                            isLink
                     />
                     <ToggleItem 
                         icon={Bluetooth} 
                         label="Bluetooth" 
                         sublabel="Mandos y Audio" 
                         isActive={true} 
-                        onClick={() => { setView('bluetooth'); playSound('select'); }} 
+                        onClick={() => openNativePanel('bluetooth', 'bluetooth')} 
                         isLink
                     />
                     </div>
@@ -143,7 +153,7 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
                         label="Ajustes de Pantalla" 
                         sublabel="Resolución y Escala" 
                         isActive={true} 
-                        onClick={() => { setView('display'); playSound('select'); }}
+                        onClick={() => openNativePanel('display', 'display')}
                         isLink 
                     />
                     <ToggleItem 

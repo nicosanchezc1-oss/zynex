@@ -127,9 +127,8 @@ export default function App() {
                 const realApps = await nativeBridge.getInstalledApps();
                 if (realApps.length > 0) {
                     setItems(prev => {
-                        const nonApps = prev.filter(i => i.type !== ItemType.APP && i.type !== ItemType.WIDGET && i.type !== ItemType.SMART_HOME);
-                        const customItems = prev.filter(i => i.type === ItemType.APP || i.type === ItemType.WIDGET || i.type === ItemType.SMART_HOME);
-                        return [...customItems.filter(i => !realApps.some(r => r.id === i.id)), ...realApps];
+                        const localContent = prev.filter(i => i.type !== ItemType.APP);
+                        return [...localContent, ...realApps];
                     });
                 }
             } catch (e) {
@@ -210,11 +209,20 @@ export default function App() {
 
       // 2. Specific Tools
       if (item.id === 'file_manager') {
+          if (nativeBridge.isNative() && nativeBridge.openFileManager()) {
+              showToast('Abriendo gestor de archivos');
+              return;
+          }
           setIsFileManagerOpen(true);
           playSound('select');
           return;
       }
       if (item.id === 'terminal') {
+          if (nativeBridge.isNative()) {
+              nativeBridge.openAppStore('com.termux');
+              showToast('Buscando terminal compatible');
+              return;
+          }
           setIsTerminalOpen(true);
           playSound('select');
           return;
@@ -232,6 +240,11 @@ export default function App() {
 
       // 3. Settings
       if (item.type === ItemType.SETTING) {
+          if (nativeBridge.isNative()) {
+              nativeBridge.openSystemSettings(item.id);
+              showToast(`Abriendo ${item.title}`);
+              return;
+          }
           setActiveSettingsItem(item);
           setIsSettingsOpen(true);
           playSound('select');
@@ -277,10 +290,52 @@ export default function App() {
   };
 
   const handleInstallApp = (app: LauncherItem) => {
+      if (nativeBridge.isNative() && app.packageName) {
+          nativeBridge.openAppStore(app.packageName);
+          showToast(`Abriendo Play Store: ${app.title}`);
+          return;
+      }
       if (items.some(i => i.id === app.id)) return;
       const newApp: LauncherItem = { ...app, type: ItemType.APP, color: 'from-blue-600 to-blue-400', isInstalled: true };
       setItems(prev => [...prev, newApp]);
       showToast(`${app.title} añadido a Aplicaciones`);
+  };
+
+  const handleContextAction = (action: 'open' | 'favorite' | 'share' | 'info' | 'uninstall', item: LauncherItem) => {
+      setContextMenu(null);
+
+      if (action === 'open') {
+          handleLaunch(item);
+          return;
+      }
+
+      if (action === 'favorite') {
+          showToast(`${item.title} añadido a favoritos`);
+          playSound('success');
+          return;
+      }
+
+      if (action === 'share') {
+          nativeBridge.shareText(item.title, `Mira ${item.title} en Zynex OS`);
+          showToast(`Compartiendo ${item.title}`);
+          return;
+      }
+
+      if (action === 'info') {
+          if (item.packageName && nativeBridge.isNative()) nativeBridge.openAppInfo(item.packageName);
+          else showToast(item.description || 'Sin detalles adicionales');
+          return;
+      }
+
+      if (action === 'uninstall') {
+          if (item.packageName && nativeBridge.isNative()) {
+              nativeBridge.uninstallApp(item.packageName);
+              showToast(`Abriendo desinstalador: ${item.title}`);
+          } else {
+              setItems(prev => prev.filter(existing => existing.id !== item.id));
+              showToast(`${item.title} quitado de Zynex`);
+          }
+      }
   };
 
   const handleContextMenu = (e: React.MouseEvent, item: LauncherItem) => {
@@ -570,6 +625,7 @@ export default function App() {
             position={contextMenu} 
             item={contextMenu.item} 
             onClose={() => setContextMenu(null)}
+            onAction={handleContextAction}
         />
       )}
 
@@ -754,7 +810,10 @@ export default function App() {
                     
                     <span className="text-[var(--text-muted)] text-xs font-semibold tracking-widest uppercase font-tech flex items-center gap-2 backdrop-blur-md bg-[var(--bg-surface)] px-3 py-1 rounded-full border border-[var(--border)]">
                         {focusedItem.type}
-                        <span className={`w-1 h-1 bg-[var(--accent)] rounded-full shadow-[0_0_5px_${activeMoodConfig.glowColor}]`}/>
+                        <span
+                            className="w-1 h-1 bg-[var(--accent)] rounded-full"
+                            style={{ boxShadow: `0 0 5px ${activeMoodConfig.glowColor}` }}
+                        />
                         {activeCategory === 'home' ? 'Destacado' : 'Explorar'}
                     </span>
                   </div>
