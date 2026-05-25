@@ -15,10 +15,14 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Base64;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
+import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -31,6 +35,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "Zynex";
     private WebView webView;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -62,8 +67,9 @@ public class MainActivity extends Activity {
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
-        webView.setWebViewClient(new WebViewClient());
-        webView.setWebChromeClient(new WebChromeClient());
+        WebView.setWebContentsDebuggingEnabled(true);
+        webView.setWebViewClient(new ZynexWebViewClient());
+        webView.setWebChromeClient(new ZynexWebChromeClient());
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         webView.loadUrl("file:///android_asset/index.html");
 
@@ -102,11 +108,46 @@ public class MainActivity extends Activity {
         );
     }
 
+    private static class ZynexWebChromeClient extends WebChromeClient {
+        @Override
+        public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+            Log.d(TAG, "console/" + consoleMessage.messageLevel() + ": " + consoleMessage.message()
+                    + " (" + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber() + ")");
+            return true;
+        }
+    }
+
+    private static class ZynexWebViewClient extends WebViewClient {
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            Log.i(TAG, "WebView loaded: " + url);
+            super.onPageFinished(view, url);
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            Log.e(TAG, "WebView resource error: " + request.getUrl() + " code=" + error.getErrorCode()
+                    + " description=" + error.getDescription());
+            super.onReceivedError(view, request, error);
+        }
+    }
+
     public static class WebAppInterface {
         private final Context context;
 
         WebAppInterface(Context context) {
             this.context = context;
+        }
+
+        @JavascriptInterface
+        public void log(String level, String message) {
+            if ("error".equals(level)) {
+                Log.e(TAG, message);
+            } else if ("warn".equals(level)) {
+                Log.w(TAG, message);
+            } else {
+                Log.i(TAG, message);
+            }
         }
 
         @JavascriptInterface

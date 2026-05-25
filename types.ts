@@ -72,3 +72,9 @@ export interface ThemeConfig {
         '--accent': string;
     }
 }
+
+declare global {
+  interface Window {
+    __ZYNEX_BOOTED__?: boolean;
+  }
+}
