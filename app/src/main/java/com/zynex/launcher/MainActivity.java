@@ -39,6 +39,23 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
     private static final String TAG = "Zynex";
     private WebView webView;
+    private static String cachedAppsJson = null;
+
+    private final android.content.BroadcastReceiver packageReceiver = new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.i(TAG, "Package broadcast received: " + intent.getAction());
+            cachedAppsJson = null;
+            if (webView != null) {
+                webView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        webView.evaluateJavascript("if (window.reloadInstalledApps) window.reloadInstalledApps();", null);
+                    }
+                });
+            }
+        }
+    };
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -75,6 +92,13 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
         webView.loadUrl("file:///android_asset/index.html");
 
+        android.content.IntentFilter filter = new android.content.IntentFilter();
+        filter.addAction(Intent.ACTION_PACKAGE_ADDED);
+        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        filter.addDataScheme("package");
+        registerReceiver(packageReceiver, filter);
+
         hideSystemUi();
     }
 
@@ -82,6 +106,16 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         hideSystemUi();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        try {
+            unregisterReceiver(packageReceiver);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -173,6 +207,9 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String getInstalledApps() {
+            if (cachedAppsJson != null) {
+                return cachedAppsJson;
+            }
             try {
                 PackageManager packageManager = context.getPackageManager();
                 LinkedHashMap<String, ResolveInfo> resolvedApps = new LinkedHashMap<>();
@@ -194,10 +231,11 @@ public class MainActivity extends Activity {
                     JSONObject jsonObject = new JSONObject();
                     jsonObject.put("label", resolveInfo.loadLabel(packageManager).toString());
                     jsonObject.put("packageName", packageName);
-                    jsonObject.put("icon", "data:image/png;base64," + drawableToBase64(resolveInfo.loadIcon(packageManager)));
+                    jsonObject.put("icon", "data:image/webp;base64," + drawableToBase64(resolveInfo.loadIcon(packageManager)));
                     jsonArray.put(jsonObject);
                 }
-                return jsonArray.toString();
+                cachedAppsJson = jsonArray.toString();
+                return cachedAppsJson;
             } catch (Exception exception) {
                 exception.printStackTrace();
                 return "[]";
@@ -235,12 +273,18 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean openAppStore(String packageName) {
-            Intent marketIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + packageName));
+            String url = packageName.startsWith("search:")
+                ? "market://search?q=" + Uri.encode(packageName.substring(7))
+                : "market://details?id=" + packageName;
+            Intent marketIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             marketIntent.setPackage("com.android.vending");
             if (startIntent(marketIntent)) {
                 return true;
             }
-            return startIntent(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + packageName)));
+            String webUrl = packageName.startsWith("search:")
+                ? "https://play.google.com/store/search?q=" + Uri.encode(packageName.substring(7))
+                : "https://play.google.com/store/apps/details?id=" + packageName;
+            return startIntent(new Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)));
         }
 
         @JavascriptInterface
@@ -310,8 +354,22 @@ public class MainActivity extends Activity {
                 drawable.draw(canvas);
             }
 
+            int maxSize = 72;
+            int width = bitmap.getWidth();
+            int height = bitmap.getHeight();
+            if (width > maxSize || height > maxSize) {
+                float scale = Math.min((float) maxSize / width, (float) maxSize / height);
+                int scaledWidth = Math.max(1, Math.round(width * scale));
+                int scaledHeight = Math.max(1, Math.round(height * scale));
+                bitmap = Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true);
+            }
+
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 75, outputStream);
+            } else {
+                bitmap.compress(Bitmap.CompressFormat.WEBP, 75, outputStream);
+            }
             return Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP);
         }
     }

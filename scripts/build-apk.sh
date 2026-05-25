@@ -37,11 +37,12 @@ npx esbuild "$ROOT_DIR/index.tsx" \
   --format=iife \
   --global-name=ZynexApp \
   --target=chrome66 \
-  --minify \
   --outfile="$WEB_BUNDLE_DIR/zynex-legacy.js" \
+  --define:process.env.NODE_ENV='"production"' \
   --define:process.env.API_KEY="$API_KEY_JSON" \
   --define:process.env.GEMINI_API_KEY="$API_KEY_JSON" \
-  --loader:.css=empty
+  --loader:.css=empty \
+  --minify
 
 cat > "$WEB_ASSETS/index.html" <<'HTML'
 <!DOCTYPE html>
@@ -74,7 +75,10 @@ cat > "$WEB_ASSETS/index.html" <<'HTML'
 
       #boot-fallback {
         position: fixed;
-        inset: 0;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -144,6 +148,28 @@ cat > "$WEB_ASSETS/index.html" <<'HTML'
         if (!Array.prototype.flatMap) {
           Array.prototype.flatMap = function (callback, thisArg) {
             return this.map(callback, thisArg).flat();
+          };
+        }
+
+        if (window.performance && window.performance.measure) {
+          var originalMeasure = window.performance.measure;
+          window.performance.measure = function (name, startOrOptions, end) {
+            try {
+              if (typeof startOrOptions === 'object' && startOrOptions !== null) {
+                var start = typeof startOrOptions.start === 'string' ? startOrOptions.start : undefined;
+                var endMark = typeof startOrOptions.end === 'string' ? startOrOptions.end : undefined;
+                if (start && endMark) {
+                  return originalMeasure.call(window.performance, name, start, endMark);
+                } else if (start) {
+                  return originalMeasure.call(window.performance, name, start);
+                } else {
+                  return originalMeasure.call(window.performance, name);
+                }
+              }
+              return originalMeasure.apply(window.performance, arguments);
+            } catch (e) {
+              // Silently ignore to prevent crashes
+            }
           };
         }
 

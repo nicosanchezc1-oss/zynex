@@ -4,7 +4,6 @@ import {
   Bluetooth,
   ExternalLink,
   FolderOpen,
-  Gamepad2,
   Grid3X3,
   HardDrive,
   Home,
@@ -83,6 +82,7 @@ const demoApps: LauncherItem[] = [
 
 const tvStoreApps: LauncherItem[] = STORE_APPS.map((app) => ({
   ...app,
+  imageUrl: undefined,
   type: ItemType.STORE,
 }));
 
@@ -132,6 +132,14 @@ const App: React.FC = () => {
   }, [loadApps]);
 
   useEffect(() => {
+    const nativeWindow = window as Window & { reloadInstalledApps?: () => void };
+    nativeWindow.reloadInstalledApps = loadApps;
+    return () => {
+      delete nativeWindow.reloadInstalledApps;
+    };
+  }, [loadApps]);
+
+  useEffect(() => {
     window.localStorage.setItem('zynex:favorites', JSON.stringify(favorites));
   }, [favorites]);
 
@@ -158,7 +166,7 @@ const App: React.FC = () => {
       if (seen.has(item.id)) return false;
       seen.add(item.id);
       return true;
-    }).slice(0, 20);
+    }).slice(0, 15);
   }, [apps, favoriteApps, recentApps]);
 
   const installedPackageNames = useMemo(() => new Set(apps.map((app) => app.packageName).filter(Boolean)), [apps]);
@@ -193,14 +201,9 @@ const App: React.FC = () => {
       title: 'Buscar apps',
       description: 'Abrir tienda para instalar',
       icon: ExternalLink,
-      action: () => nativeBridge.openAppStore('com.android.vending'),
-    },
-    {
-      id: 'game',
-      title: 'Modo juego',
-      description: 'Prioriza una interfaz liviana',
-      icon: Gamepad2,
-      action: () => showToast('Zynex ya esta en modo liviano para TV Box'),
+      action: () => {
+        if (!nativeBridge.openAppStore('search:android tv')) showToast('No hay tienda disponible', 'warn');
+      },
     },
     {
       id: 'device',
@@ -326,6 +329,12 @@ const App: React.FC = () => {
     showToast(favorites.includes(item.id) ? 'Quitado de favoritos' : 'Anadido a inicio');
   }, [favorites, showToast]);
 
+  const openContext = useCallback((item: LauncherItem | ActionItem | null) => {
+    if (!item || 'action' in item) return;
+    if (item.type === ItemType.STORE && !item.isInstalled) return;
+    setContextItem(item);
+  }, []);
+
   const moveFocus = useCallback((direction: 'left' | 'right' | 'up' | 'down') => {
     const columns = getColumnCount();
     setFocusedIndex((index) => {
@@ -388,7 +397,7 @@ const App: React.FC = () => {
         case 'ContextMenu':
         case 'm':
         case 'M':
-          if (focusedItem && !('action' in focusedItem)) setContextItem(focusedItem);
+          openContext(focusedItem);
           event.preventDefault();
           break;
         case 'Backspace':
@@ -402,16 +411,15 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, contextItem, focusArea, focusedIndex, focusedItem, moveFocus, runItem, selectTab]);
+  }, [activeTab, contextItem, focusArea, focusedIndex, focusedItem, moveFocus, openContext, runItem, selectTab]);
 
   return (
     <div className="min-h-screen w-screen overflow-hidden bg-[#03050b] text-slate-100">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(99,102,241,0.28),transparent_28rem),radial-gradient(circle_at_88%_78%,rgba(34,211,238,0.16),transparent_30rem),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,1))]" />
-      <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.8)_1px,transparent_1px)] [background-size:64px_64px]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(99,102,241,0.22),transparent_28rem),radial-gradient(circle_at_88%_78%,rgba(34,211,238,0.12),transparent_30rem),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,1))]" />
       <div className="relative z-10 flex h-screen">
-        <aside className="flex w-60 shrink-0 flex-col border-r border-white/10 bg-slate-950/45 px-4 py-5 shadow-[30px_0_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl">
+        <aside className="flex w-60 shrink-0 flex-col border-r border-white/10 bg-slate-950/75 px-4 py-5">
           <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-indigo-500 to-cyan-400 shadow-[0_0_32px_rgba(99,102,241,0.34)]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-gradient-to-br from-indigo-500 to-cyan-400">
               <span className="font-brand text-2xl text-white">Z</span>
             </div>
             <div>
@@ -443,11 +451,11 @@ const App: React.FC = () => {
             </div>
             <div className="rounded-[15px] border border-cyan-300/20 bg-cyan-300/10 p-3.5">
               <div className="flex items-center gap-3 text-cyan-100">
-                <Wifi size={18} className="animate-pulse" />
+                <Wifi size={18} />
                 <span className="font-tech text-xs font-bold uppercase tracking-[0.2em]">Android Bridge</span>
               </div>
               <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full w-4/5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]" />
+                <div className="h-full w-4/5 rounded-full bg-cyan-300" />
               </div>
               <div className="mt-2 text-sm text-slate-300">{apps.length} apps listas</div>
             </div>
@@ -467,12 +475,12 @@ const App: React.FC = () => {
           <HeroPanel focusedItem={focusedItem} activeTab={activeTab} resultCount={currentItems.length} />
 
           <div className="mt-3 grid min-h-0 flex-1 grid-cols-[1fr_300px] gap-3">
-            <section className="min-h-0 rounded-[18px] border border-white/10 bg-white/[0.055] p-3.5 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+            <section className="flex min-h-0 flex-col rounded-[18px] border border-white/10 bg-white/[0.055] p-3.5">
               <SectionTitle activeTab={activeTab} isLoadingApps={isLoadingApps} query={query} resultCount={currentItems.length} />
               {currentItems.length === 0 ? (
                 <EmptyState activeTab={activeTab} onRefresh={loadApps} />
               ) : (
-                <div className="mt-3 grid max-h-[calc(100vh-275px)] grid-cols-5 gap-2.5 overflow-y-auto pr-2">
+                <div className="mt-3 grid min-h-0 flex-1 grid-cols-5 gap-2.5 overflow-y-auto pr-2">
                   {currentItems.map((item, index) => (
                     <LauncherTile
                       key={item.id}
@@ -482,9 +490,7 @@ const App: React.FC = () => {
                       isFavorite={!('action' in item) && favorites.includes(item.id)}
                       onFocus={() => setFocusedIndex(index)}
                       onRun={() => runItem(item)}
-                      onMenu={() => {
-                        if (!('action' in item)) setContextItem(item);
-                      }}
+                      onMenu={() => openContext(item)}
                     />
                   ))}
                 </div>
@@ -539,7 +545,7 @@ const Header: React.FC<{
   onPower: () => void;
 }> = ({ clock, appCount, isNative, query, onQueryChange, onPower }) => (
   <header className="flex h-14 shrink-0 items-center justify-between gap-5">
-    <div className="flex min-w-[440px] items-center gap-3 rounded-[14px] border border-white/10 bg-black/30 px-4 py-2 shadow-[0_18px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+    <div className="flex min-w-[440px] items-center gap-3 rounded-[14px] border border-white/10 bg-black/30 px-4 py-2">
       <Search size={24} className="text-cyan-300" />
       <input
         value={query}
@@ -557,7 +563,7 @@ const Header: React.FC<{
         <div className="font-tech text-3xl leading-none">{clock.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
         <div className="mt-1 text-sm capitalize text-slate-400">{clock.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })}</div>
       </div>
-      <button onClick={onPower} className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-cyan-300/30 bg-cyan-300/15 text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.18)]">
+      <button onClick={onPower} className="flex h-11 w-11 items-center justify-center rounded-[12px] border border-cyan-300/30 bg-cyan-300/15 text-cyan-100">
         <Power size={22} />
       </button>
     </div>
@@ -574,7 +580,7 @@ const HeroPanel: React.FC<{ focusedItem: LauncherItem | ActionItem | null; activ
   };
 
   return (
-    <section className="mt-3 flex h-24 shrink-0 items-end justify-between overflow-hidden rounded-[20px] border border-white/10 bg-gradient-to-r from-slate-950/80 via-indigo-950/45 to-cyan-950/30 px-6 py-4 shadow-[0_24px_90px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+    <section className="mt-3 flex h-24 shrink-0 items-end justify-between overflow-hidden rounded-[20px] border border-white/10 bg-gradient-to-r from-slate-950/80 via-indigo-950/45 to-cyan-950/30 px-6 py-4">
       <div>
         <div className="mb-2 flex items-center gap-3">
           <span className="rounded-full bg-white/10 px-3 py-1 font-tech text-xs font-bold uppercase tracking-[0.24em] text-cyan-200">
@@ -583,7 +589,7 @@ const HeroPanel: React.FC<{ focusedItem: LauncherItem | ActionItem | null; activ
           <span className="h-1 w-1 rounded-full bg-cyan-300" />
           <span className="text-sm font-semibold text-slate-400">{resultCount} elementos</span>
         </div>
-        <h1 className="font-tech text-4xl font-black leading-none tracking-tight text-white drop-shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+        <h1 className="font-tech text-4xl font-black leading-none tracking-tight text-white">
           {focusedItem?.title ?? titleByTab[activeTab]}
         </h1>
       </div>
@@ -604,11 +610,11 @@ const TabButton: React.FC<{
   return (
     <button
       onClick={onClick}
-      className={`relative flex w-full items-center gap-3 rounded-[14px] border px-4 py-3 text-left text-base font-bold transition-all ${
-        isActive ? 'border-cyan-300/30 bg-white/10 text-white shadow-[0_0_26px_rgba(99,102,241,0.24)]' : 'border-white/5 bg-white/[0.035] text-slate-400 hover:border-white/10 hover:bg-white/5'
+      className={`relative flex w-full items-center gap-3 rounded-[14px] border px-4 py-3 text-left text-base font-bold ${
+        isActive ? 'border-cyan-300/30 bg-white/10 text-white' : 'border-white/5 bg-white/[0.035] text-slate-400'
       } ${isFocused ? 'outline outline-2 outline-offset-2 outline-cyan-300' : ''}`}
     >
-      {isActive && <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.85)]" />}
+      {isActive && <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-300" />}
       <Icon size={22} />
       <span>{tab.label}</span>
     </button>
@@ -656,10 +662,10 @@ const LauncherTile: React.FC<{
         event.preventDefault();
         onMenu();
       }}
-      className={`group relative h-24 rounded-[12px] border p-2.5 text-left transition-transform ${
+      className={`group relative h-28 rounded-[12px] border p-3 text-left ${
         isFocused
-          ? 'scale-[1.035] border-cyan-300 bg-gradient-to-br from-indigo-500 to-cyan-500 text-white shadow-[0_22px_60px_rgba(34,211,238,0.22)]'
-          : 'border-white/10 bg-slate-950/55 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+          ? 'border-cyan-300 bg-gradient-to-br from-indigo-500 to-cyan-500 text-white'
+          : 'border-white/10 bg-slate-950/55 text-slate-100'
       }`}
     >
       <div className="flex h-full flex-col justify-between">
@@ -667,21 +673,21 @@ const LauncherTile: React.FC<{
           {'imageUrl' in item && item.imageUrl ? (
             <img
               src={item.imageUrl}
-              className="h-9 w-9 shrink-0 rounded-[10px] bg-black/30 object-contain"
+              className="h-11 w-11 shrink-0 rounded-[11px] bg-black/30 object-contain"
               onError={(event) => {
                 event.currentTarget.style.display = 'none';
               }}
             />
           ) : (
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] ${isFocused ? 'bg-white/15' : 'bg-white/10'}`}>
-              <Icon size={22} />
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[11px] ${isFocused ? 'bg-white/15' : 'bg-white/10'}`}>
+              <Icon size={24} />
             </div>
           )}
-          {isFavorite && <div className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.75)]" />}
+          {isFavorite && <div className="h-2.5 w-2.5 rounded-full bg-cyan-300" />}
         </div>
         <div className="min-w-0">
-          <div className="line-clamp-2 text-[15px] font-bold leading-tight">{item.title}</div>
-          <div className={`mt-1 line-clamp-1 text-[11px] ${isFocused ? 'text-indigo-50' : 'text-slate-400'}`}>
+          <div className="line-clamp-2 text-base font-bold leading-tight">{item.title}</div>
+          <div className={`mt-1 line-clamp-1 text-xs ${isFocused ? 'text-indigo-50' : 'text-slate-400'}`}>
             {'isInstalled' in item && item.isInstalled ? 'Instalada' : item.description}
           </div>
         </div>
@@ -696,9 +702,9 @@ const Aside: React.FC<{
   onRun: () => void;
   onRefresh: () => void;
 }> = ({ focusedItem, activeTab, onRun, onRefresh }) => (
-  <aside className="rounded-[18px] border border-white/10 bg-white/[0.055] p-3.5 shadow-[0_24px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+  <aside className="rounded-[18px] border border-white/10 bg-white/[0.055] p-3.5">
     <div className="flex h-full flex-col">
-      <div className="rounded-[14px] border border-cyan-300/20 bg-gradient-to-br from-indigo-500/95 to-cyan-500/90 p-3.5 text-white shadow-[0_0_36px_rgba(99,102,241,0.25)]">
+      <div className="rounded-[14px] border border-cyan-300/20 bg-gradient-to-br from-indigo-500/95 to-cyan-500/90 p-3.5 text-white">
         <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-cyan-50">
           <Sparkles size={16} />
           Seleccionado
@@ -714,7 +720,7 @@ const Aside: React.FC<{
       </div>
 
       <div className="mt-auto grid gap-3">
-        <button onClick={onRun} className="h-10 rounded-[12px] bg-cyan-300 font-bold text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.18)]">
+        <button onClick={onRun} className="h-10 rounded-[12px] bg-cyan-300 font-bold text-slate-950">
           {activeTab === 'store' ? 'Buscar / instalar' : 'Abrir'}
         </button>
         <button onClick={onRefresh} className="h-10 rounded-[12px] border border-white/10 bg-white/5 font-bold text-slate-100">
@@ -755,7 +761,7 @@ const ContextPanel: React.FC<{
   onUninstall: () => void;
 }> = ({ item, isFavorite, onClose, onLaunch, onFavorite, onInfo, onUninstall }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-    <div className="w-[520px] rounded-[18px] border border-white/10 bg-slate-950/95 p-5 text-slate-100 shadow-2xl backdrop-blur-xl">
+    <div className="w-[520px] rounded-[18px] border border-white/10 bg-slate-950 p-5 text-slate-100">
       <div className="font-tech text-3xl">{item.title}</div>
       <div className="mt-1 text-sm text-slate-400">{item.packageName ?? 'Sin paquete'}</div>
       <div className="mt-5 grid gap-3">
@@ -786,7 +792,7 @@ const ActionButton: React.FC<{ icon: React.ElementType; label: string; onClick: 
 const Toast: React.FC<{ toast: ToastState }> = ({ toast }) => {
   const color = toast.tone === 'error' ? 'border-red-400 text-red-100' : toast.tone === 'warn' ? 'border-amber-300 text-amber-100' : 'border-emerald-300 text-emerald-100';
   return (
-    <div className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[12px] border bg-black/85 px-5 py-3 text-lg font-bold shadow-2xl backdrop-blur-xl ${color}`}>
+    <div className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-[12px] border bg-black/85 px-5 py-3 text-lg font-bold ${color}`}>
       {toast.text}
     </div>
   );
